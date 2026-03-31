@@ -458,19 +458,21 @@ server.listen(PORT, '0.0.0.0', async () => {
   console.log(`║  관리자:   http://localhost:${PORT}/admin.html`);
   console.log('╚═══════════════════════════════════════════════════════════╝');
 
-  // Try to open a public tunnel with localtunnel
-  try {
-    const localtunnel = require('localtunnel');
-    const tunnel = await localtunnel({ port: PORT });
-    console.log('');
-    console.log('🌐 외부 접속 URL (공유용):');
-    console.log(`   참가자: ${tunnel.url}`);
-    console.log(`   관리자: ${tunnel.url}/admin.html`);
-    console.log('');
-    tunnel.on('close', () => console.log('⚠️  터널 연결이 종료되었습니다.'));
-  } catch (e) {
-    console.log('');
-    console.log('💡 외부 접속을 위해: npm install localtunnel 후 재시작');
-    console.log('   또는 같은 Wi-Fi에서 위 네트워크 IP로 접속 가능합니다.');
+  // Only use localtunnel in local development
+  if (process.env.NODE_ENV !== 'production') {
+    try {
+      const localtunnel = require('localtunnel');
+      const tunnel = await localtunnel({ port: PORT });
+      console.log('');
+      console.log('🌐 외부 접속 URL (공유용):');
+      console.log(`   참가자: ${tunnel.url}`);
+      console.log(`   관리자: ${tunnel.url}/admin.html`);
+      console.log('');
+      tunnel.on('close', () => console.log('⚠️  터널 연결이 종료되었습니다.'));
+    } catch (e) {
+      console.log('');
+      console.log('💡 외부 접속을 위해: npm install localtunnel 후 재시작');
+      console.log('   또는 같은 Wi-Fi에서 위 네트워크 IP로 접속 가능합니다.');
+    }
   }
 });
