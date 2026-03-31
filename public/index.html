@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎯 빙고 퀴즈</title>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; background: #0f0c29; color: #fff; min-height: 100vh; overflow-x: hidden; }
+
+  /* Screens */
+  .screen { display: none; min-height: 100vh; padding: 20px; }
+  .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+
+  /* Title */
+  .game-title { font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #f093fb, #f5a623, #43e97b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 10px; }
+  .subtitle { color: #aaa; font-size: 1rem; text-align: center; margin-bottom: 30px; }
+
+  /* Join Form */
+  .join-card { background: rgba(255,255,255,0.07); backdrop-filter: blur(10px); border-radius: 20px; padding: 40px; width: 100%; max-width: 500px; border: 1px solid rgba(255,255,255,0.1); }
+  .input-group { margin-bottom: 20px; }
+  .input-group label { display: block; color: #ccc; margin-bottom: 8px; font-size: 0.9rem; }
+  .input-group input { width: 100%; padding: 14px 18px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; font-size: 1rem; outline: none; transition: border 0.2s; }
+  .input-group input:focus { border-color: #f5a623; }
+  .input-group input::placeholder { color: #666; }
+
+  /* Emoji Grid */
+  .emoji-label { color: #ccc; font-size: 0.9rem; margin-bottom: 10px; }
+  .emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-height: 200px; overflow-y: auto; padding: 4px; }
+  .emoji-btn { font-size: 1.6rem; padding: 8px; background: rgba(255,255,255,0.05); border: 2px solid transparent; border-radius: 10px; cursor: pointer; transition: all 0.15s; text-align: center; }
+  .emoji-btn:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
+  .emoji-btn.selected { border-color: #f5a623; background: rgba(245,166,35,0.2); transform: scale(1.15); }
+
+  /* Buttons */
+  .btn { padding: 14px 32px; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  .btn-primary { background: linear-gradient(135deg, #f093fb, #f5a623); color: #fff; width: 100%; }
+  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(245,166,35,0.4); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* Arrangement Screen */
+  .arrangement-container { width: 100%; max-width: 900px; }
+  .arrangement-header { text-align: center; margin-bottom: 20px; }
+  .arrangement-header h2 { font-size: 1.8rem; margin-bottom: 8px; }
+  .timer-bar { background: rgba(255,255,255,0.1); border-radius: 10px; height: 8px; width: 100%; max-width: 400px; margin: 0 auto 20px; overflow: hidden; }
+  .timer-fill { height: 100%; background: linear-gradient(90deg, #43e97b, #f5a623, #f093fb); border-radius: 10px; transition: width 1s linear; }
+  .arrangement-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
+
+  .keyword-pool h3 { margin-bottom: 12px; color: #f5a623; font-size: 1rem; }
+  .keyword-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .keyword-chip { padding: 8px 14px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.15s; user-select: none; }
+  .keyword-chip:hover { background: rgba(245,166,35,0.3); border-color: #f5a623; }
+  .keyword-chip.selected { background: rgba(245,166,35,0.4); border-color: #f5a623; color: #f5a623; font-weight: 700; }
+  .keyword-chip.placed { opacity: 0.35; cursor: default; }
+
+  .board-section h3 { margin-bottom: 12px; color: #f5a623; font-size: 1rem; }
+  .bingo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .bingo-cell { aspect-ratio: 1; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; padding: 4px; word-break: keep-all; line-height: 1.3; }
+  .bingo-cell:hover { background: rgba(245,166,35,0.2); border-color: #f5a623; }
+  .bingo-cell.filled { background: rgba(99,179,237,0.25); border-color: #63b3ed; color: #63b3ed; font-weight: 700; }
+  .bingo-cell.target { border-color: #f5a623; background: rgba(245,166,35,0.15); animation: pulse 0.8s ease-in-out infinite alternate; }
+  @keyframes pulse { from { box-shadow: 0 0 0 0 rgba(245,166,35,0); } to { box-shadow: 0 0 12px 3px rgba(245,166,35,0.4); } }
+
+  .arrangement-actions { margin-top: 16px; display: flex; gap: 12px; }
+  .btn-secondary { padding: 12px 24px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; }
+  .btn-secondary:hover { background: rgba(255,255,255,0.2); }
+
+  /* Waiting Screen */
+  .waiting-card { text-align: center; }
+  .waiting-emoji { font-size: 4rem; margin-bottom: 20px; animation: bounce 1s ease-in-out infinite alternate; }
+  @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-15px); } }
+  .waiting-card h2 { font-size: 1.8rem; margin-bottom: 10px; }
+  .waiting-card p { color: #aaa; }
+
+  /* Game Screen */
+  .game-container { width: 100%; max-width: 1000px; }
+  .game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 12px 20px; background: rgba(255,255,255,0.07); border-radius: 14px; }
+  .player-info { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; }
+  .bingo-count { font-size: 1rem; color: #f5a623; }
+  .question-timer { font-size: 2rem; font-weight: 900; color: #f093fb; min-width: 50px; text-align: center; }
+
+  .question-box { background: rgba(255,255,255,0.07); border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 16px; min-height: 100px; display: flex; align-items: center; justify-content: center; }
+  .question-text { font-size: 1.4rem; font-weight: 700; line-height: 1.5; }
+  .question-keyword { font-size: 1rem; color: #f5a623; margin-bottom: 8px; }
+  .question-placeholder { color: #555; font-size: 1.1rem; }
+
+  .ox-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+  .ox-btn { padding: 24px; border: none; border-radius: 16px; font-size: 3rem; cursor: pointer; transition: all 0.2s; font-weight: 900; }
+  .ox-btn.o-btn { background: rgba(67,233,123,0.2); border: 2px solid #43e97b; color: #43e97b; }
+  .ox-btn.x-btn { background: rgba(240,93,251,0.2); border: 2px solid #f05dff; color: #f05dff; }
+  .ox-btn:hover { transform: scale(1.03); }
+  .ox-btn.answered { opacity: 0.5; }
+  .ox-btn.my-answer { opacity: 1 !important; transform: scale(1.05); box-shadow: 0 0 20px currentColor; }
+  .ox-btn:disabled { cursor: not-allowed; }
+
+  .game-board-section { margin-top: 4px; }
+  .game-board-section h3 { text-align: center; margin-bottom: 8px; color: #aaa; font-size: 0.85rem; }
+  .game-bingo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .game-cell { aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.7rem; padding: 4px; word-break: keep-all; line-height: 1.3; font-weight: 600; transition: all 0.4s; border: 2px solid transparent; }
+  .game-cell.idle { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); color: #ccc; }
+  .game-cell.correct { background: rgba(67,233,123,0.3); border-color: #43e97b; color: #43e97b; }
+  .game-cell.wrong { background: rgba(100,100,100,0.2); border-color: rgba(100,100,100,0.3); color: #555; }
+  .game-cell.current { border-color: #f5a623; animation: pulse 0.8s ease-in-out infinite alternate; }
+
+  /* Result Popup */
+  .result-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; }
+  .result-overlay.show { display: flex; }
+  .result-card { background: #1a1a2e; border-radius: 20px; padding: 32px; text-align: center; max-width: 480px; width: 90%; border: 1px solid rgba(255,255,255,0.1); animation: slideIn 0.3s ease; }
+  @keyframes slideIn { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .result-correct-answer { font-size: 4rem; margin: 10px 0; }
+  .result-title { font-size: 1.1rem; color: #aaa; margin-bottom: 8px; }
+  .result-names { font-size: 1rem; color: #43e97b; margin-top: 12px; line-height: 1.8; max-height: 120px; overflow-y: auto; }
+
+  /* Voting Screen overlay */
+  .vote-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 200; }
+  .vote-overlay.show { display: flex; }
+  .vote-card { background: #1a1a2e; border-radius: 20px; padding: 28px; width: 90%; max-width: 560px; border: 1px solid rgba(255,255,255,0.15); }
+  .vote-card h2 { text-align: center; margin-bottom: 6px; font-size: 1.4rem; }
+  .vote-timer { text-align: center; font-size: 2.5rem; font-weight: 900; color: #f5a623; margin-bottom: 16px; }
+  .vote-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 300px; overflow-y: auto; }
+  .vote-item { padding: 12px 8px; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.15s; }
+  .vote-item:hover { background: rgba(245,166,35,0.15); border-color: #f5a623; }
+  .vote-item.voted { background: rgba(245,166,35,0.3); border-color: #f5a623; }
+  .vote-item .kw { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
+  .vote-item .count { font-size: 1.2rem; font-weight: 900; color: #f5a623; }
+
+  /* Winner Screen */
+  .winner-screen { text-align: center; }
+  .winner-emoji-big { font-size: 5rem; margin-bottom: 10px; }
+  .winner-title { font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #f5a623, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
+  .winner-name { font-size: 1.8rem; font-weight: 700; color: #43e97b; margin-bottom: 20px; }
+  .winner-board { margin: 0 auto; max-width: 300px; }
+  .winner-cell { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; padding: 3px; word-break: keep-all; text-align: center; font-weight: 600; line-height: 1.2; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+  .error-msg { color: #ff6b6b; font-size: 0.85rem; margin-top: 8px; text-align: center; min-height: 20px; }
+  .participant-nickname { display: inline-block; background: rgba(245,166,35,0.2); border-radius: 8px; padding: 4px 10px; margin: 2px; }
+</style>
+</head>
+<body>
+
+<!-- ① Join Screen -->
+<div id="screen-join" class="screen active">
+  <div class="game-title">🎯 빙고 퀴즈</div>
+  <p class="subtitle">사내 행사 O/X 빙고 게임</p>
+  <div class="join-card">
+    <div class="input-group">
+      <label>닉네임</label>
+      <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요" maxlength="10" />
+    </div>
+    <div class="input-group">
+      <div class="emoji-label">이모티콘 선택</div>
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+    <div class="error-msg" id="join-error"></div>
+    <button class="btn btn-primary" id="join-btn" style="margin-top:16px">입장하기</button>
+  </div>
+</div>
+
+<!-- ② Arrangement Screen -->
+<div id="screen-arrangement" class="screen">
+  <div class="arrangement-container">
+    <div class="arrangement-header">
+      <h2>🗂️ 빙고판 배치</h2>
+      <p style="color:#aaa; font-size:0.9rem; margin-bottom:10px">키워드를 선택하고 빙고판의 원하는 위치에 배치하세요</p>
+      <div class="timer-bar"><div class="timer-fill" id="arrange-timer-fill" style="width:100%"></div></div>
+    </div>
+    <div class="arrangement-layout">
+      <div class="keyword-pool">
+        <h3>📋 키워드 목록 <span id="pool-count" style="color:#aaa; font-weight:400">(선택: 0/16)</span></h3>
+        <div class="keyword-list" id="keyword-pool"></div>
+      </div>
+      <div class="board-section">
+        <h3>🎯 내 빙고판</h3>
+        <div class="bingo-grid" id="arrange-board"></div>
+        <div class="arrangement-actions">
+          <button class="btn-secondary" id="auto-arrange-btn">자동 배치</button>
+          <button class="btn btn-primary" id="submit-board-btn" style="flex:1">배치 완료!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ③ Waiting Screen -->
+<div id="screen-waiting" class="screen">
+  <div class="waiting-card">
+    <div class="waiting-emoji" id="my-emoji-display">🐶</div>
+    <h2>준비 완료!</h2>
+    <p id="waiting-nickname" style="font-size:1.2rem; margin:10px 0; color:#f5a623"></p>
+    <p style="color:#aaa">관리자가 게임을 시작할 때까지 기다려주세요...</p>
+  </div>
+</div>
+
+<!-- ④ Game Screen -->
+<div id="screen-game" class="screen" style="align-items:stretch; padding:12px;">
+  <div class="game-container" style="margin:0 auto;">
+    <div class="game-header">
+      <div class="player-info">
+        <span id="game-emoji">🐶</span>
+        <span id="game-nickname">Player</span>
+      </div>
+      <div class="bingo-count">빙고 <span id="bingo-count">0</span>개</div>
+      <div class="question-timer" id="question-timer">-</div>
+    </div>
+
+    <div class="question-box">
+      <div id="question-area">
+        <p class="question-placeholder">관리자가 키워드를 선택하면 문제가 출제됩니다</p>
+      </div>
+    </div>
+
+    <div class="ox-buttons">
+      <button class="ox-btn o-btn" id="btn-o" disabled>⭕</button>
+      <button class="ox-btn x-btn" id="btn-x" disabled>❌</button>
+    </div>
+
+    <div class="game-board-section">
+      <h3>내 빙고판</h3>
+      <div class="game-bingo-grid" id="game-board"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ⑤ Winner Screen -->
+<div id="screen-winner" class="screen">
+  <div class="winner-screen">
+    <div class="winner-emoji-big" id="winner-emoji">🏆</div>
+    <div class="winner-title">🎉 빙고! 우승!</div>
+    <div class="winner-name" id="winner-name"></div>
+    <p style="color:#aaa; margin-bottom:20px">빙고 3줄 달성!</p>
+    <div class="winner-board">
+      <div class="game-bingo-grid" id="winner-board-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Question Result Overlay -->
+<div class="result-overlay" id="result-overlay">
+  <div class="result-card">
+    <div class="result-title" id="result-kw"></div>
+    <div class="result-correct-answer" id="result-answer"></div>
+    <div id="result-names-section">
+      <div style="color:#aaa; font-size:0.85rem; margin-bottom:6px">정답자</div>
+      <div class="result-names" id="result-names"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Voting Overlay -->
+<div class="vote-overlay" id="vote-overlay">
+  <div class="vote-card">
+    <h2>🗳️ 다음 키워드 투표!</h2>
+    <div class="vote-timer" id="vote-timer">5</div>
+    <div class="vote-grid" id="vote-grid"></div>
+  </div>
+</div>
+
+<script>
+const EMOJIS = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋'];
+
+const socket = io({ query: { role: 'participant' } });
+
+let myNickname = null;
+let myEmoji = null;
+let mySocketId = null;
+let selectedEmoji = null;
+let selectedChip = null;    // keyword chip element selected from pool
+let boardSlots = new Array(16).fill(null); // questionId per slot
+let myAnswer = null;
+let hasVoted = false;
+let arrangeTimer = null;
+let arrangeTimeLeft = 90;
+
+// ── Emoji Grid ───────────────────────────────────────────────────────────────
+const emojiGrid = document.getElementById('emoji-grid');
+EMOJIS.forEach(e => {
+  const btn = document.createElement('button');
+  btn.className = 'emoji-btn';
+  btn.textContent = e;
+  btn.onclick = () => {
+    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedEmoji = e;
+  };
+  emojiGrid.appendChild(btn);
+});
+
+// ── Join ─────────────────────────────────────────────────────────────────────
+document.getElementById('join-btn').onclick = () => {
+  const nickname = document.getElementById('nickname-input').value.trim();
+  if (!nickname) { showError('닉네임을 입력해주세요'); return; }
+  if (!selectedEmoji) { showError('이모티콘을 선택해주세요'); return; }
+  socket.emit('participant:join', { nickname, emoji: selectedEmoji });
+};
+document.getElementById('nickname-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('join-btn').click();
+});
+
+function showError(msg) {
+  document.getElementById('join-error').textContent = msg;
+  setTimeout(() => { document.getElementById('join-error').textContent = ''; }, 3000);
+}
+
+// ── Arrangement ───────────────────────────────────────────────────────────────
+function buildArrangementScreen(questions) {
+  // Build pool
+  const pool = document.getElementById('keyword-pool');
+  pool.innerHTML = '';
+  questions.forEach(q => {
+    if (boardSlots.includes(q.id)) return;
+    const chip = document.createElement('div');
+    chip.className = 'keyword-chip';
+    chip.textContent = q.keyword;
+    chip.dataset.id = q.id;
+    chip.onclick = () => selectChip(chip, q.id);
+    pool.appendChild(chip);
+  });
+
+  // Build board
+  const board = document.getElementById('arrange-board');
+  board.innerHTML = '';
+  for (let i = 0; i < 16; i++) {
+    const cell = document.createElement('div');
+    cell.className = 'bingo-cell' + (boardSlots[i] ? ' filled' : '');
+    cell.dataset.slot = i;
+    if (boardSlots[i]) {
+      const q = questions.find(q => q.id === boardSlots[i]);
+      cell.textContent = q ? q.keyword : '';
+    }
+    cell.onclick = () => clickSlot(i, questions);
+    board.appendChild(cell);
+  }
+  updatePoolCount();
+}
+
+function selectChip(chip, qId) {
+  if (chip.classList.contains('placed')) return;
+  document.querySelectorAll('.keyword-chip').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.bingo-cell').forEach(c => c.classList.remove('target'));
+  if (selectedChip && selectedChip.dataset.id === qId) {
+    selectedChip = null;
+    return;
+  }
+  chip.classList.add('selected');
+  selectedChip = chip;
+  // Highlight empty slots
+  document.querySelectorAll('.bingo-cell:not(.filled)').forEach(c => c.classList.add('target'));
+}
+
+function clickSlot(idx, questions) {
+  const cells = document.querySelectorAll('#arrange-board .bingo-cell');
+  if (selectedChip) {
+    // Place selected chip into this slot
+    if (boardSlots[idx]) {
+      // Remove existing placement → return to pool
+      returnToPool(boardSlots[idx]);
+    }
+    boardSlots[idx] = selectedChip.dataset.id;
+    selectedChip.classList.add('placed');
+    selectedChip.classList.remove('selected');
+    selectedChip = null;
+    document.querySelectorAll('.bingo-cell').forEach(c => c.classList.remove('target'));
+    buildArrangementScreen(questions);
+  } else if (boardSlots[idx]) {
+    // Remove from slot → return to pool
+    returnToPool(boardSlots[idx]);
+    boardSlots[idx] = null;
+    buildArrangementScreen(questions);
+  }
+}
+
+function returnToPool(qId) {
+  const chip = document.querySelector(`.keyword-chip[data-id="${qId}"]`);
+  if (chip) {
+    chip.classList.remove('placed', 'selected');
+  }
+}
+
+function updatePoolCount() {
+  const placed = boardSlots.filter(Boolean).length;
+  document.getElementById('pool-count').textContent = `(배치: ${placed}/16)`;
+}
+
+document.getElementById('auto-arrange-btn').onclick = () => {
+  if (!currentQuestions) return;
+  const unplaced = currentQuestions.map(q => q.id).filter(id => !boardSlots.includes(id));
+  shuffle(unplaced);
+  let ui = 0;
+  for (let i = 0; i < 16; i++) {
+    if (!boardSlots[i]) boardSlots[i] = unplaced[ui++];
+  }
+  buildArrangementScreen(currentQuestions);
+};
+
+document.getElementById('submit-board-btn').onclick = () => {
+  // Auto-fill remaining
+  if (!currentQuestions) return;
+  const unplaced = currentQuestions.map(q => q.id).filter(id => !boardSlots.includes(id));
+  shuffle(unplaced);
+  let ui = 0;
+  for (let i = 0; i < 16; i++) {
+    if (!boardSlots[i]) boardSlots[i] = unplaced[ui++];
+  }
+  socket.emit('participant:submitBoard', boardSlots);
+  document.getElementById('submit-board-btn').textContent = '완료! ✓';
+  document.getElementById('submit-board-btn').disabled = true;
+};
+
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// ── Game Board ────────────────────────────────────────────────────────────────
+function buildGameBoard(board, cellStatus, currentQId, questions) {
+  const grid = document.getElementById('game-board');
+  grid.innerHTML = '';
+  board.forEach(qId => {
+    const q = questions.find(q => q.id === qId);
+    const cell = document.createElement('div');
+    const status = cellStatus[qId];
+    let cls = 'game-cell ';
+    if (status === 'correct') cls += 'correct';
+    else if (status === 'wrong') cls += 'wrong';
+    else cls += 'idle';
+    if (qId === currentQId) cls += ' current';
+    cell.className = cls;
+    cell.textContent = q ? q.keyword : '';
+    grid.appendChild(cell);
+  });
+}
+
+// ── O/X Buttons ──────────────────────────────────────────────────────────────
+document.getElementById('btn-o').onclick = () => submitAnswer('O');
+document.getElementById('btn-x').onclick = () => submitAnswer('X');
+
+function submitAnswer(ans) {
+  if (myAnswer) return;
+  myAnswer = ans;
+  socket.emit('participant:answer', ans);
+  document.getElementById('btn-o').classList.add('answered');
+  document.getElementById('btn-x').classList.add('answered');
+  document.getElementById(`btn-${ans.toLowerCase()}`).classList.add('my-answer');
+  document.getElementById('btn-o').disabled = true;
+  document.getElementById('btn-x').disabled = true;
+}
+
+// ── Screen Switcher ───────────────────────────────────────────────────────────
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${id}`).classList.add('active');
+}
+
+// ── Socket Events ─────────────────────────────────────────────────────────────
+let currentQuestions = null;
+let currentGameState = null;
+
+socket.on('connect', () => { mySocketId = socket.id; });
+
+socket.on('error', msg => { showError(msg); });
+
+socket.on('participant:joined', ({ nickname, emoji }) => {
+  myNickname = nickname;
+  myEmoji = emoji;
+});
+
+socket.on('participant:boardConfirmed', () => {
+  showScreen('waiting');
+  document.getElementById('waiting-nickname').textContent = `${myEmoji} ${myNickname}`;
+  document.getElementById('my-emoji-display').textContent = myEmoji;
+});
+
+socket.on('game:state', (gs) => {
+  currentGameState = gs;
+  if (gs.questions) currentQuestions = gs.questions;
+
+  const me = mySocketId ? gs.participants[mySocketId] : null;
+  if (!me) {
+    // Not yet joined — stay on join if lobby/setup
+    if (gs.phase === 'lobby' || gs.phase === 'arrangement') {
+      // Check if this page just loaded mid-game
+    }
+    return;
+  }
+
+  // Update bingo count
+  document.getElementById('bingo-count').textContent = me.bingos || 0;
+  document.getElementById('game-emoji').textContent = myEmoji || me.emoji;
+  document.getElementById('game-nickname').textContent = myNickname || me.nickname;
+
+  if (gs.phase === 'arrangement') {
+    boardSlots = me.board ? [...me.board] : new Array(16).fill(null);
+    buildArrangementScreen(currentQuestions);
+    if (!me.boardReady) {
+      showScreen('arrangement');
+      startArrangeTimer();
+    } else {
+      showScreen('waiting');
+    }
+  } else if (gs.phase === 'waiting') {
+    if (!me.boardReady) {
+      // Final auto-arrange
+      const unplaced = currentQuestions.map(q => q.id).filter(id => !boardSlots.includes(id));
+      shuffle(unplaced);
+      let ui = 0;
+      for (let i = 0; i < 16; i++) {
+        if (!boardSlots[i]) boardSlots[i] = unplaced[ui++];
+      }
+      socket.emit('participant:submitBoard', boardSlots);
+    }
+    showScreen('waiting');
+  } else if (gs.phase === 'game' || gs.phase === 'voting') {
+    showScreen('game');
+    if (me.board) buildGameBoard(me.board, me.cellStatus, gs.currentQId, currentQuestions);
+  } else if (gs.phase === 'ended') {
+    document.getElementById('vote-overlay').classList.remove('show');
+    document.getElementById('result-overlay').classList.remove('show');
+  }
+});
+
+socket.on('game:waitForAdmin', () => {
+  showScreen('game');
+  document.getElementById('question-area').innerHTML = '<p class="question-placeholder">관리자가 첫 번째 키워드를 선택합니다...</p>';
+  document.getElementById('btn-o').disabled = true;
+  document.getElementById('btn-x').disabled = true;
+});
+
+socket.on('game:question', ({ qId, question }) => {
+  myAnswer = null;
+  document.getElementById('btn-o').disabled = false;
+  document.getElementById('btn-x').disabled = false;
+  document.getElementById('btn-o').classList.remove('answered', 'my-answer');
+  document.getElementById('btn-x').classList.remove('answered', 'my-answer');
+  document.getElementById('vote-overlay').classList.remove('show');
+  document.getElementById('result-overlay').classList.remove('show');
+
+  const kw = currentQuestions?.find(q => q.id === qId)?.keyword || '';
+  document.getElementById('question-area').innerHTML = `
+    <div class="question-keyword">[ ${kw} ]</div>
+    <div class="question-text">${question}</div>
+  `;
+  document.getElementById('question-timer').textContent = '10';
+  showScreen('game');
+});
+
+socket.on('game:timer', (t) => {
+  document.getElementById('question-timer').textContent = t;
+  if (t <= 0) {
+    document.getElementById('btn-o').disabled = true;
+    document.getElementById('btn-x').disabled = true;
+  }
+});
+
+socket.on('game:questionResult', ({ qId, correctAnswer, question, correctNicknames }) => {
+  const kw = currentQuestions?.find(q => q.id === qId)?.keyword || '';
+  document.getElementById('result-kw').textContent = `[ ${kw} ] ${question}`;
+  document.getElementById('result-answer').textContent = correctAnswer === 'O' ? '⭕' : '❌';
+  document.getElementById('result-names').innerHTML = correctNicknames.length > 0
+    ? correctNicknames.map(n => `<span class="participant-nickname">${n}</span>`).join('')
+    : '<span style="color:#888">정답자 없음</span>';
+  document.getElementById('result-overlay').classList.add('show');
+});
+
+socket.on('game:voting', ({ candidates }) => {
+  document.getElementById('result-overlay').classList.remove('show');
+  hasVoted = false;
+  const grid = document.getElementById('vote-grid');
+  grid.innerHTML = '';
+  candidates.forEach(c => {
+    const item = document.createElement('div');
+    item.className = 'vote-item';
+    item.dataset.id = c.id;
+    item.innerHTML = `<div class="kw">${c.keyword}</div><div class="count">0</div>`;
+    item.onclick = () => {
+      if (hasVoted) return;
+      hasVoted = true;
+      document.querySelectorAll('.vote-item').forEach(v => v.classList.remove('voted'));
+      item.classList.add('voted');
+      socket.emit('participant:vote', c.id);
+    };
+    grid.appendChild(item);
+  });
+  document.getElementById('vote-overlay').classList.add('show');
+  document.getElementById('vote-timer').textContent = '5';
+});
+
+socket.on('game:voteTally', (tally) => {
+  document.querySelectorAll('.vote-item').forEach(item => {
+    const cnt = tally[item.dataset.id] || 0;
+    item.querySelector('.count').textContent = cnt;
+  });
+});
+
+socket.on('game:voteTimer', (t) => {
+  document.getElementById('vote-timer').textContent = t;
+  if (t <= 0) document.getElementById('vote-overlay').classList.remove('show');
+});
+
+socket.on('game:ended', ({ winner, emoji, board, cellStatus }) => {
+  document.getElementById('vote-overlay').classList.remove('show');
+  document.getElementById('result-overlay').classList.remove('show');
+  if (winner) {
+    document.getElementById('winner-name').textContent = `${emoji || '🏆'} ${winner}`;
+    document.getElementById('winner-emoji').textContent = '🎉';
+    // Build winner board
+    if (board && cellStatus && currentQuestions) {
+      const grid = document.getElementById('winner-board-grid');
+      grid.innerHTML = '';
+      board.forEach(qId => {
+        const q = currentQuestions.find(q => q.id === qId);
+        const cell = document.createElement('div');
+        const status = cellStatus[qId];
+        cell.className = 'winner-cell game-cell ' + (status === 'correct' ? 'correct' : status === 'wrong' ? 'wrong' : 'idle');
+        cell.textContent = q ? q.keyword : '';
+        grid.appendChild(cell);
+      });
+    }
+    showScreen('winner');
+  } else {
+    // No winner - all questions used
+    document.getElementById('winner-name').textContent = '모든 문제 완료!';
+    document.getElementById('winner-emoji').textContent = '🎊';
+    showScreen('winner');
+  }
+});
+
+// Arrange timer
+function startArrangeTimer() {
+  if (arrangeTimer) return;
+  arrangeTimeLeft = 90;
+  arrangeTimer = setInterval(() => {
+    arrangeTimeLeft--;
+    const pct = (arrangeTimeLeft / 90) * 100;
+    document.getElementById('arrange-timer-fill').style.width = pct + '%';
+    if (arrangeTimeLeft <= 0) {
+      clearInterval(arrangeTimer);
+      arrangeTimer = null;
+      document.getElementById('submit-board-btn').click();
+    }
+  }, 1000);
+}
+</script>
+</body>
+</html>
