@@ -130,6 +130,27 @@
   ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
+
+  /* Question Picker Modal */
+  .picker-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 500; padding: 20px; }
+  .picker-overlay.show { display: flex; }
+  .picker-card { background: #1a1a2e; border-radius: 20px; padding: 28px; width: 100%; max-width: 640px; max-height: 85vh; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.1); }
+  .picker-header { text-align: center; margin-bottom: 16px; }
+  .picker-header h2 { font-size: 1.3rem; margin-bottom: 6px; }
+  .picker-header p { color: #aaa; font-size: 0.85rem; }
+  .picker-count { text-align: center; font-size: 1rem; font-weight: 700; color: #f5a623; margin-bottom: 12px; }
+  .picker-actions { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; flex-wrap: wrap; }
+  .picker-list { flex: 1; overflow-y: auto; margin-bottom: 16px; }
+  .pick-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 5px; border: 2px solid rgba(255,255,255,0.06); cursor: pointer; transition: all 0.15s; }
+  .pick-item:hover { background: rgba(255,255,255,0.08); }
+  .pick-item.selected { border-color: #f5a623; background: rgba(245,166,35,0.1); }
+  .pick-item .pick-check { width: 22px; height: 22px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; flex-shrink: 0; }
+  .pick-item.selected .pick-check { background: #f5a623; border-color: #f5a623; color: #000; }
+  .pick-item .pick-num { color: #888; font-size: 0.75rem; min-width: 20px; }
+  .pick-item .pick-kw { font-weight: 700; font-size: 0.85rem; color: #63b3ed; min-width: 60px; }
+  .pick-item .pick-q { flex: 1; font-size: 0.8rem; color: #ccc; }
+  .pick-item .pick-ans { font-size: 0.9rem; }
+  .picker-footer { display: flex; gap: 10px; justify-content: center; }
 </style>
 </head>
 <body>
@@ -143,6 +164,27 @@
   </div>
 </div>
 <div class="toast" id="toast"></div>
+
+<!-- Question Picker Modal -->
+<div class="picker-overlay" id="picker-overlay">
+  <div class="picker-card">
+    <div class="picker-header">
+      <h2>🎯 게임에 사용할 문제 선택</h2>
+      <p id="picker-set-name"></p>
+    </div>
+    <div class="picker-count">선택: <span id="picker-selected">0</span> / 16</div>
+    <div class="picker-actions">
+      <button class="btn btn-info btn-sm" onclick="pickerRandomSelect()">🎲 랜덤 16개 선택</button>
+      <button class="btn btn-sm" onclick="pickerSelectAll()" style="background:rgba(255,255,255,0.08);color:#ccc;">전체 선택</button>
+      <button class="btn btn-sm" onclick="pickerDeselectAll()" style="background:rgba(255,255,255,0.08);color:#ccc;">전체 해제</button>
+    </div>
+    <div class="picker-list" id="picker-list"></div>
+    <div class="picker-footer">
+      <button class="btn btn-primary" id="picker-confirm-btn" onclick="pickerConfirm()" disabled>선택 완료 (16개 필요)</button>
+      <button class="btn btn-danger btn-sm" onclick="pickerClose()">취소</button>
+    </div>
+  </div>
+</div>
 
 <div class="layout">
   <div class="left-panel">
@@ -304,16 +346,106 @@ async function saveSet() {
   } catch (e) { showToast('저장 실패', 'error'); }
 }
 
+let pickerAllQuestions = []; // all questions from loaded set
+let pickerSelected = new Set(); // selected indices
+
 async function loadSet(id) {
   try {
     const res = await fetch(`/api/sets/${id}`);
     const set = await res.json();
-    questions = set.questions;
     currentSetId = set.id;
-    renderQList();
-    showToast(`"${set.name}" 불러오기 완료!`);
-    fetchSets();
+    if (set.questions.length <= 16) {
+      // 16개 이하면 바로 로드
+      questions = set.questions;
+      renderQList();
+      showToast(`"${set.name}" 불러오기 완료! (${set.questions.length}문제)`);
+      fetchSets();
+    } else {
+      // 16개 초과면 선택 모달 열기
+      pickerAllQuestions = set.questions;
+      pickerSelected = new Set();
+      openPicker(set.name);
+    }
   } catch (e) { showToast('불러오기 실패', 'error'); }
+}
+
+function openPicker(setName) {
+  document.getElementById('picker-set-name').textContent = `"${setName}" — 총 ${pickerAllQuestions.length}문제 중 16개를 선택하세요`;
+  renderPickerList();
+  updatePickerCount();
+  document.getElementById('picker-overlay').classList.add('show');
+}
+
+function pickerClose() {
+  document.getElementById('picker-overlay').classList.remove('show');
+}
+
+function renderPickerList() {
+  const list = document.getElementById('picker-list');
+  list.innerHTML = '';
+  pickerAllQuestions.forEach((q, i) => {
+    const sel = pickerSelected.has(i);
+    const item = document.createElement('div');
+    item.className = 'pick-item' + (sel ? ' selected' : '');
+    item.innerHTML = `
+      <div class="pick-check">${sel ? '✓' : ''}</div>
+      <span class="pick-num">${i+1}</span>
+      <span class="pick-kw">${q.keyword}</span>
+      <span class="pick-q">${q.question}</span>
+      <span class="pick-ans">${q.answer === 'O' ? '⭕' : '❌'}</span>`;
+    item.onclick = () => {
+      if (pickerSelected.has(i)) {
+        pickerSelected.delete(i);
+      } else {
+        pickerSelected.add(i);
+      }
+      renderPickerList();
+      updatePickerCount();
+    };
+    list.appendChild(item);
+  });
+}
+
+function updatePickerCount() {
+  const cnt = pickerSelected.size;
+  document.getElementById('picker-selected').textContent = cnt;
+  const btn = document.getElementById('picker-confirm-btn');
+  btn.disabled = cnt !== 16;
+  btn.textContent = cnt === 16 ? '✓ 선택 완료 (16개)' : `선택 완료 (${cnt}/16)`;
+}
+
+function pickerRandomSelect() {
+  pickerSelected = new Set();
+  const indices = Array.from({ length: pickerAllQuestions.length }, (_, i) => i);
+  // Shuffle
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  indices.slice(0, 16).forEach(i => pickerSelected.add(i));
+  renderPickerList();
+  updatePickerCount();
+}
+
+function pickerSelectAll() {
+  pickerAllQuestions.forEach((_, i) => pickerSelected.add(i));
+  renderPickerList();
+  updatePickerCount();
+}
+
+function pickerDeselectAll() {
+  pickerSelected = new Set();
+  renderPickerList();
+  updatePickerCount();
+}
+
+function pickerConfirm() {
+  if (pickerSelected.size !== 16) return;
+  questions = Array.from(pickerSelected).sort((a,b) => a-b).map(i => pickerAllQuestions[i]);
+  renderQList();
+  pickerClose();
+  showToast(`16개 문제 선택 완료!`);
+  fetchSets();
 }
 
 async function updateSet(id) {
@@ -355,7 +487,6 @@ function addQuestion() {
     editingIdx = null;
     document.querySelector('[onclick="addQuestion()"]').textContent = '+ 문제 추가';
   } else {
-    if (questions.length >= 16) return alert('최대 16개까지 입력 가능합니다');
     questions.push({ keyword: kw, question: q, answer: selectedAnswer });
   }
   clearEditor();
@@ -380,8 +511,14 @@ function renderQList() {
     item.onclick = () => editQ(i);
     list.appendChild(item);
   });
-  document.getElementById('q-count').textContent = `${questions.length}/16`;
-  document.getElementById('save-hint').textContent = questions.length < 16 ? `${16 - questions.length}개 더 추가해야 합니다` : '저장 준비 완료!';
+  document.getElementById('q-count').textContent = `${questions.length}개`;
+  if (questions.length < 16) {
+    document.getElementById('save-hint').textContent = `게임 진행에는 16개 문제가 필요합니다 (현재 ${questions.length}개)`;
+  } else if (questions.length === 16) {
+    document.getElementById('save-hint').textContent = '✓ 16개 완성! 바로 게임을 시작할 수 있습니다';
+  } else {
+    document.getElementById('save-hint').textContent = `✓ ${questions.length}개 저장 가능 · 게임 시 16개를 선택합니다`;
+  }
 }
 
 function deleteQ(i, e) { e.stopPropagation(); questions.splice(i, 1); renderQList(); }
@@ -395,7 +532,29 @@ function editQ(i) {
 }
 
 function applyQuestions() {
-  if (questions.length !== 16) return alert('16개의 문제가 필요합니다');
+  if (questions.length < 16) return alert(`문제가 ${questions.length}개입니다. 최소 16개가 필요합니다.`);
+  if (questions.length > 16) {
+    // 16개 초과 → 선택 모달 열기
+    pickerAllQuestions = [...questions];
+    pickerSelected = new Set();
+    document.getElementById('picker-set-name').textContent = `현재 문제 목록 — 총 ${questions.length}문제 중 16개를 선택하세요`;
+    renderPickerList();
+    updatePickerCount();
+    // Override confirm to also apply
+    document.getElementById('picker-confirm-btn').onclick = () => {
+      if (pickerSelected.size !== 16) return;
+      questions = Array.from(pickerSelected).sort((a,b) => a-b).map(i => pickerAllQuestions[i]);
+      renderQList();
+      pickerClose();
+      socket.emit('admin:setQuestions', questions);
+      socket.emit('admin:openLobby');
+      // Restore default confirm handler
+      document.getElementById('picker-confirm-btn').onclick = pickerConfirm;
+    };
+    document.getElementById('picker-overlay').classList.add('show');
+    return;
+  }
+  // Exactly 16
   socket.emit('admin:setQuestions', questions);
   socket.emit('admin:openLobby');
 }
