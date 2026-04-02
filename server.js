@@ -233,6 +233,29 @@ io.on('connection', socket => {
     broadcastState();
   });
 
+  // New game: reset game state but keep participants connected
+  socket.on('admin:newGame', () => {
+    if (!isAdmin) return;
+    clearAllTimers();
+    const savedQuestions = state.questions;
+    Object.keys(state.participants).forEach(sid => {
+      const p = state.participants[sid];
+      p.board = null;
+      p.cellStatus = {};
+      p.bingos = 0;
+      p.boardReady = false;
+      savedQuestions.forEach(q => { p.cellStatus[q.id] = null; });
+    });
+    state.phase = 'lobby';
+    state.askedIds = [];
+    state.currentQId = null;
+    state.questionAnswers = {};
+    state.votes = {};
+    state.winner = null;
+    broadcastState();
+    io.emit('game:newGame');
+  });
+
   // ── PARTICIPANT EVENTS ────────────────────────────────────────────────────
   socket.on('participant:join', ({ nickname, emoji }) => {
     if (state.phase !== 'lobby' && state.phase !== 'arrangement') return;
@@ -375,9 +398,23 @@ function endQuestion(qId) {
 
   const remaining = state.questions.filter(q => !state.askedIds.includes(q.id));
   if (remaining.length === 0) {
+    // All questions asked — find player with most bingos
+    let maxBingos = 0;
+    Object.values(state.participants).forEach(p => {
+      if (p.bingos > maxBingos) maxBingos = p.bingos;
+    });
+    const topPlayers = Object.values(state.participants).filter(p => p.bingos === maxBingos);
+    const bestPlayer = topPlayers.length > 0 && maxBingos > 0 ? topPlayers[0] : null;
+    state.winner = bestPlayer ? bestPlayer.nickname : null;
     state.phase = 'ended';
     broadcastState();
-    io.emit('game:ended', { winner: null });
+    io.emit('game:ended', bestPlayer ? {
+      winner: bestPlayer.nickname,
+      emoji: bestPlayer.emoji,
+      board: bestPlayer.board,
+      cellStatus: bestPlayer.cellStatus,
+      bingos: bestPlayer.bingos
+    } : { winner: null });
     return;
   }
 

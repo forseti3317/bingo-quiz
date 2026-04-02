@@ -2,143 +2,147 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>🎯 빙고 퀴즈</title>
 <script src="/socket.io/socket.io.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; background: #0f0c29; color: #fff; min-height: 100vh; overflow-x: hidden; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  body { font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif; background: #0f0c29; color: #fff; min-height: 100dvh; overflow-x: hidden; }
 
-  /* Screens */
-  .screen { display: none; min-height: 100vh; padding: 20px; }
+  .screen { display: none; min-height: 100dvh; padding: 16px; }
   .screen.active { display: flex; flex-direction: column; align-items: center; justify-content: center; }
 
   /* Title */
-  .game-title { font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #f093fb, #f5a623, #43e97b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 10px; }
-  .subtitle { color: #aaa; font-size: 1rem; text-align: center; margin-bottom: 30px; }
+  .game-title { font-size: 2rem; font-weight: 900; background: linear-gradient(135deg, #f093fb, #f5a623, #43e97b); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-align: center; margin-bottom: 6px; }
+  .subtitle { color: #aaa; font-size: 0.85rem; text-align: center; margin-bottom: 24px; }
 
-  /* Join Form */
-  .join-card { background: rgba(255,255,255,0.07); backdrop-filter: blur(10px); border-radius: 20px; padding: 40px; width: 100%; max-width: 500px; border: 1px solid rgba(255,255,255,0.1); }
-  .input-group { margin-bottom: 20px; }
-  .input-group label { display: block; color: #ccc; margin-bottom: 8px; font-size: 0.9rem; }
-  .input-group input { width: 100%; padding: 14px 18px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; font-size: 1rem; outline: none; transition: border 0.2s; }
+  /* Join Card */
+  .join-card { background: rgba(255,255,255,0.07); backdrop-filter: blur(10px); border-radius: 20px; padding: 28px 24px; width: 100%; max-width: 420px; border: 1px solid rgba(255,255,255,0.1); }
+  .input-group { margin-bottom: 16px; }
+  .input-group label { display: block; color: #ccc; margin-bottom: 6px; font-size: 0.85rem; }
+  .input-group input { width: 100%; padding: 14px 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; font-size: 1rem; outline: none; }
   .input-group input:focus { border-color: #f5a623; }
   .input-group input::placeholder { color: #666; }
 
-  /* Emoji Grid */
-  .emoji-label { color: #ccc; font-size: 0.9rem; margin-bottom: 10px; }
-  .emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; max-height: 200px; overflow-y: auto; padding: 4px; }
-  .emoji-btn { font-size: 1.6rem; padding: 8px; background: rgba(255,255,255,0.05); border: 2px solid transparent; border-radius: 10px; cursor: pointer; transition: all 0.15s; text-align: center; }
-  .emoji-btn:hover { background: rgba(255,255,255,0.15); transform: scale(1.1); }
-  .emoji-btn.selected { border-color: #f5a623; background: rgba(245,166,35,0.2); transform: scale(1.15); }
+  .emoji-label { color: #ccc; font-size: 0.85rem; margin-bottom: 8px; }
+  .emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; max-height: 180px; overflow-y: auto; padding: 2px; }
+  .emoji-btn { font-size: 1.5rem; padding: 8px 4px; background: rgba(255,255,255,0.05); border: 2px solid transparent; border-radius: 10px; cursor: pointer; text-align: center; transition: all 0.15s; }
+  .emoji-btn.selected { border-color: #f5a623; background: rgba(245,166,35,0.2); transform: scale(1.1); }
 
-  /* Buttons */
-  .btn { padding: 14px 32px; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
+  .btn { padding: 14px 28px; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: all 0.2s; }
   .btn-primary { background: linear-gradient(135deg, #f093fb, #f5a623); color: #fff; width: 100%; }
-  .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(245,166,35,0.4); }
-  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-primary:hover { box-shadow: 0 8px 25px rgba(245,166,35,0.4); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+  .error-msg { color: #ff6b6b; font-size: 0.8rem; margin-top: 6px; text-align: center; min-height: 18px; }
 
-  /* Arrangement Screen */
-  .arrangement-container { width: 100%; max-width: 900px; }
-  .arrangement-header { text-align: center; margin-bottom: 20px; }
-  .arrangement-header h2 { font-size: 1.8rem; margin-bottom: 8px; }
-  .timer-bar { background: rgba(255,255,255,0.1); border-radius: 10px; height: 8px; width: 100%; max-width: 400px; margin: 0 auto 20px; overflow: hidden; }
+  /* Lobby (입장완료) Screen */
+  .lobby-card { text-align: center; max-width: 360px; }
+  .lobby-emoji-big { font-size: 4.5rem; margin-bottom: 16px; animation: float 2s ease-in-out infinite alternate; }
+  @keyframes float { from { transform: translateY(0); } to { transform: translateY(-12px); } }
+  .lobby-badge { display: inline-block; padding: 8px 24px; background: rgba(67,233,123,0.15); border: 1px solid #43e97b; border-radius: 20px; color: #43e97b; font-weight: 700; font-size: 1rem; margin-bottom: 12px; }
+  .lobby-nick { font-size: 1.4rem; font-weight: 700; color: #f5a623; margin-bottom: 16px; }
+  .lobby-hint { color: #777; font-size: 0.85rem; line-height: 1.5; }
+
+  /* Arrangement */
+  .arrangement-container { width: 100%; max-width: 500px; }
+  .arrangement-header { text-align: center; margin-bottom: 14px; }
+  .arrangement-header h2 { font-size: 1.4rem; margin-bottom: 4px; }
+  .timer-bar { background: rgba(255,255,255,0.1); border-radius: 10px; height: 6px; width: 100%; max-width: 300px; margin: 0 auto 14px; overflow: hidden; }
   .timer-fill { height: 100%; background: linear-gradient(90deg, #43e97b, #f5a623, #f093fb); border-radius: 10px; transition: width 1s linear; }
-  .arrangement-layout { display: grid; grid-template-columns: 1fr 1.2fr; gap: 20px; }
 
-  .keyword-pool h3 { margin-bottom: 12px; color: #f5a623; font-size: 1rem; }
-  .keyword-list { display: flex; flex-wrap: wrap; gap: 8px; }
-  .keyword-chip { padding: 8px 14px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.15s; user-select: none; }
-  .keyword-chip:hover { background: rgba(245,166,35,0.3); border-color: #f5a623; }
-  .keyword-chip.selected { background: rgba(245,166,35,0.4); border-color: #f5a623; color: #f5a623; font-weight: 700; }
-  .keyword-chip.placed { opacity: 0.35; cursor: default; }
+  /* Mobile: stack vertically */
+  .keyword-pool { margin-bottom: 14px; }
+  .keyword-pool h3 { margin-bottom: 8px; color: #f5a623; font-size: 0.85rem; }
+  .keyword-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .keyword-chip { padding: 7px 12px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 18px; cursor: pointer; font-size: 0.8rem; transition: all 0.15s; user-select: none; }
+  .keyword-chip:hover, .keyword-chip.selected { background: rgba(245,166,35,0.3); border-color: #f5a623; color: #f5a623; font-weight: 700; }
+  .keyword-chip.placed { opacity: 0.3; pointer-events: none; }
 
-  .board-section h3 { margin-bottom: 12px; color: #f5a623; font-size: 1rem; }
-  .bingo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .bingo-cell { aspect-ratio: 1; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.75rem; cursor: pointer; transition: all 0.15s; padding: 4px; word-break: keep-all; line-height: 1.3; }
-  .bingo-cell:hover { background: rgba(245,166,35,0.2); border-color: #f5a623; }
+  .board-section h3 { margin-bottom: 8px; color: #f5a623; font-size: 0.85rem; }
+  .bingo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .bingo-cell { aspect-ratio: 1; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.15); border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.7rem; cursor: pointer; padding: 3px; word-break: keep-all; line-height: 1.2; transition: all 0.15s; }
   .bingo-cell.filled { background: rgba(99,179,237,0.25); border-color: #63b3ed; color: #63b3ed; font-weight: 700; }
   .bingo-cell.target { border-color: #f5a623; background: rgba(245,166,35,0.15); animation: pulse 0.8s ease-in-out infinite alternate; }
-  @keyframes pulse { from { box-shadow: 0 0 0 0 rgba(245,166,35,0); } to { box-shadow: 0 0 12px 3px rgba(245,166,35,0.4); } }
+  @keyframes pulse { to { box-shadow: 0 0 12px 3px rgba(245,166,35,0.4); } }
 
-  .arrangement-actions { margin-top: 16px; display: flex; gap: 12px; }
-  .btn-secondary { padding: 12px 24px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; font-size: 0.9rem; cursor: pointer; transition: all 0.2s; }
-  .btn-secondary:hover { background: rgba(255,255,255,0.2); }
-
-  /* Waiting Screen */
-  .waiting-card { text-align: center; }
-  .waiting-emoji { font-size: 4rem; margin-bottom: 20px; animation: bounce 1s ease-in-out infinite alternate; }
-  @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-15px); } }
-  .waiting-card h2 { font-size: 1.8rem; margin-bottom: 10px; }
-  .waiting-card p { color: #aaa; }
+  .arrangement-actions { margin-top: 12px; display: flex; gap: 10px; }
+  .btn-secondary { padding: 12px 18px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; color: #fff; font-size: 0.85rem; cursor: pointer; }
 
   /* Game Screen */
-  .game-container { width: 100%; max-width: 1000px; }
-  .game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 12px 20px; background: rgba(255,255,255,0.07); border-radius: 14px; }
-  .player-info { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 1.1rem; }
-  .bingo-count { font-size: 1rem; color: #f5a623; }
-  .question-timer { font-size: 2rem; font-weight: 900; color: #f093fb; min-width: 50px; text-align: center; }
+  .game-container { width: 100%; max-width: 500px; margin: 0 auto; }
+  .game-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: rgba(255,255,255,0.07); border-radius: 12px; margin-bottom: 10px; }
+  .player-info { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1rem; }
+  .bingo-count { font-size: 0.9rem; color: #f5a623; font-weight: 700; }
+  .question-timer { font-size: 1.8rem; font-weight: 900; color: #f093fb; min-width: 40px; text-align: center; }
 
-  .question-box { background: rgba(255,255,255,0.07); border-radius: 16px; padding: 24px; text-align: center; margin-bottom: 16px; min-height: 100px; display: flex; align-items: center; justify-content: center; }
-  .question-text { font-size: 1.4rem; font-weight: 700; line-height: 1.5; }
-  .question-keyword { font-size: 1rem; color: #f5a623; margin-bottom: 8px; }
-  .question-placeholder { color: #555; font-size: 1.1rem; }
+  .question-box { background: rgba(255,255,255,0.07); border-radius: 14px; padding: 18px 16px; text-align: center; margin-bottom: 12px; min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .question-keyword { font-size: 0.85rem; color: #f5a623; margin-bottom: 6px; }
+  .question-text { font-size: 1.15rem; font-weight: 700; line-height: 1.5; }
+  .question-placeholder { color: #555; font-size: 0.95rem; }
 
-  .ox-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  .ox-btn { padding: 24px; border: none; border-radius: 16px; font-size: 3rem; cursor: pointer; transition: all 0.2s; font-weight: 900; }
-  .ox-btn.o-btn { background: rgba(67,233,123,0.2); border: 2px solid #43e97b; color: #43e97b; }
-  .ox-btn.x-btn { background: rgba(240,93,251,0.2); border: 2px solid #f05dff; color: #f05dff; }
-  .ox-btn:hover { transform: scale(1.03); }
-  .ox-btn.answered { opacity: 0.5; }
-  .ox-btn.my-answer { opacity: 1 !important; transform: scale(1.05); box-shadow: 0 0 20px currentColor; }
-  .ox-btn:disabled { cursor: not-allowed; }
+  .ox-buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+  .ox-btn { padding: 20px; border: none; border-radius: 14px; font-size: 2.5rem; cursor: pointer; transition: all 0.2s; font-weight: 900; }
+  .ox-btn.o-btn { background: rgba(67,233,123,0.15); border: 2px solid rgba(67,233,123,0.4); color: #43e97b; }
+  .ox-btn.x-btn { background: rgba(240,93,251,0.15); border: 2px solid rgba(240,93,251,0.4); color: #f05dff; }
+  .ox-btn.my-answer { transform: scale(1.04); box-shadow: 0 0 20px currentColor; border-width: 3px; }
+  .ox-btn.o-btn.my-answer { background: rgba(67,233,123,0.3); border-color: #43e97b; }
+  .ox-btn.x-btn.my-answer { background: rgba(240,93,251,0.3); border-color: #f05dff; }
+  .ox-btn:disabled { opacity: 0.3; cursor: not-allowed; }
 
-  .game-board-section { margin-top: 4px; }
-  .game-board-section h3 { text-align: center; margin-bottom: 8px; color: #aaa; font-size: 0.85rem; }
-  .game-bingo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .game-cell { aspect-ratio: 1; border-radius: 10px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.7rem; padding: 4px; word-break: keep-all; line-height: 1.3; font-weight: 600; transition: all 0.4s; border: 2px solid transparent; }
-  .game-cell.idle { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); color: #ccc; }
+  .game-board-section h3 { text-align: center; margin-bottom: 6px; color: #aaa; font-size: 0.75rem; }
+  .game-bingo-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .game-cell { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; text-align: center; font-size: 0.65rem; padding: 3px; word-break: keep-all; line-height: 1.2; font-weight: 600; transition: all 0.3s; border: 2px solid transparent; }
+  .game-cell.idle { background: rgba(255,255,255,0.07); border-color: rgba(255,255,255,0.1); color: #bbb; }
   .game-cell.correct { background: rgba(67,233,123,0.3); border-color: #43e97b; color: #43e97b; }
-  .game-cell.wrong { background: rgba(100,100,100,0.2); border-color: rgba(100,100,100,0.3); color: #555; }
+  .game-cell.wrong { background: rgba(255,70,70,0.2); border-color: rgba(255,70,70,0.5); color: #ff5252; }
   .game-cell.current { border-color: #f5a623; animation: pulse 0.8s ease-in-out infinite alternate; }
 
-  /* Result Popup */
-  .result-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: none; align-items: center; justify-content: center; z-index: 100; }
+  /* Result Overlay */
+  .result-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
   .result-overlay.show { display: flex; }
-  .result-card { background: #1a1a2e; border-radius: 20px; padding: 32px; text-align: center; max-width: 480px; width: 90%; border: 1px solid rgba(255,255,255,0.1); animation: slideIn 0.3s ease; }
+  .result-card { background: #1a1a2e; border-radius: 20px; padding: 28px 24px; text-align: center; max-width: 420px; width: 100%; border: 1px solid rgba(255,255,255,0.1); animation: slideIn 0.3s ease; }
   @keyframes slideIn { from { transform: translateY(30px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-  .result-correct-answer { font-size: 4rem; margin: 10px 0; }
-  .result-title { font-size: 1.1rem; color: #aaa; margin-bottom: 8px; }
-  .result-names { font-size: 1rem; color: #43e97b; margin-top: 12px; line-height: 1.8; max-height: 120px; overflow-y: auto; }
+  .result-correct-answer { font-size: 3.5rem; margin: 8px 0; }
+  .result-title { font-size: 0.95rem; color: #aaa; margin-bottom: 6px; }
+  .result-names { font-size: 0.9rem; color: #43e97b; margin-top: 10px; line-height: 1.8; max-height: 100px; overflow-y: auto; }
+  .participant-nickname { display: inline-block; background: rgba(245,166,35,0.2); border-radius: 8px; padding: 3px 10px; margin: 2px; }
 
-  /* Voting Screen overlay */
-  .vote-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; z-index: 200; }
+  /* Vote Overlay */
+  .vote-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.88); display: none; align-items: center; justify-content: center; z-index: 200; padding: 16px; }
   .vote-overlay.show { display: flex; }
-  .vote-card { background: #1a1a2e; border-radius: 20px; padding: 28px; width: 90%; max-width: 560px; border: 1px solid rgba(255,255,255,0.15); }
-  .vote-card h2 { text-align: center; margin-bottom: 6px; font-size: 1.4rem; }
-  .vote-timer { text-align: center; font-size: 2.5rem; font-weight: 900; color: #f5a623; margin-bottom: 16px; }
-  .vote-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; max-height: 300px; overflow-y: auto; }
-  .vote-item { padding: 12px 8px; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.1); border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.15s; }
-  .vote-item:hover { background: rgba(245,166,35,0.15); border-color: #f5a623; }
+  .vote-card { background: #1a1a2e; border-radius: 20px; padding: 24px 20px; width: 100%; max-width: 480px; border: 1px solid rgba(255,255,255,0.15); }
+  .vote-card h2 { text-align: center; margin-bottom: 4px; font-size: 1.2rem; }
+  .vote-timer { text-align: center; font-size: 2.2rem; font-weight: 900; color: #f5a623; margin-bottom: 12px; }
+  .vote-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-height: 260px; overflow-y: auto; }
+  .vote-item { padding: 10px 6px; background: rgba(255,255,255,0.07); border: 2px solid rgba(255,255,255,0.1); border-radius: 10px; text-align: center; cursor: pointer; transition: all 0.15s; }
   .vote-item.voted { background: rgba(245,166,35,0.3); border-color: #f5a623; }
-  .vote-item .kw { font-size: 0.85rem; font-weight: 700; margin-bottom: 4px; }
-  .vote-item .count { font-size: 1.2rem; font-weight: 900; color: #f5a623; }
+  .vote-item .kw { font-size: 0.8rem; font-weight: 700; margin-bottom: 3px; }
+  .vote-item .count { font-size: 1.1rem; font-weight: 900; color: #f5a623; }
 
   /* Winner Screen */
-  .winner-screen { text-align: center; }
-  .winner-emoji-big { font-size: 5rem; margin-bottom: 10px; }
-  .winner-title { font-size: 2.5rem; font-weight: 900; background: linear-gradient(135deg, #f5a623, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 8px; }
-  .winner-name { font-size: 1.8rem; font-weight: 700; color: #43e97b; margin-bottom: 20px; }
-  .winner-board { margin: 0 auto; max-width: 300px; }
-  .winner-cell { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.65rem; padding: 3px; word-break: keep-all; text-align: center; font-weight: 600; line-height: 1.2; }
+  .winner-screen { text-align: center; max-width: 400px; }
+  .winner-emoji-big { font-size: 4rem; margin-bottom: 8px; }
+  .winner-title { font-size: 2rem; font-weight: 900; background: linear-gradient(135deg, #f5a623, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
+  .winner-name { font-size: 1.5rem; font-weight: 700; color: #43e97b; margin-bottom: 16px; }
+  .winner-bingo-info { color: #f5a623; font-size: 0.9rem; margin-bottom: 16px; }
+  .winner-board { margin: 0 auto; max-width: 280px; }
+  .winner-cell { aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; padding: 2px; word-break: keep-all; text-align: center; font-weight: 600; line-height: 1.2; }
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; height: 6px; }
-  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
 
-  .error-msg { color: #ff6b6b; font-size: 0.85rem; margin-top: 8px; text-align: center; min-height: 20px; }
-  .participant-nickname { display: inline-block; background: rgba(245,166,35,0.2); border-radius: 8px; padding: 4px 10px; margin: 2px; }
+  /* Mobile adjustments */
+  @media (max-width: 420px) {
+    .game-title { font-size: 1.6rem; }
+    .join-card { padding: 20px 16px; }
+    .emoji-grid { grid-template-columns: repeat(6, 1fr); gap: 4px; }
+    .emoji-btn { font-size: 1.3rem; padding: 6px 2px; }
+    .ox-btn { padding: 16px; font-size: 2rem; }
+    .question-text { font-size: 1rem; }
+    .vote-grid { grid-template-columns: repeat(2, 1fr); }
+    .game-cell { font-size: 0.55rem; }
+  }
 </style>
 </head>
 <body>
@@ -150,55 +154,63 @@
   <div class="join-card">
     <div class="input-group">
       <label>닉네임</label>
-      <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요" maxlength="10" />
+      <input type="text" id="nickname-input" placeholder="닉네임을 입력하세요" maxlength="10" autocomplete="off" />
     </div>
     <div class="input-group">
       <div class="emoji-label">이모티콘 선택</div>
       <div class="emoji-grid" id="emoji-grid"></div>
     </div>
     <div class="error-msg" id="join-error"></div>
-    <button class="btn btn-primary" id="join-btn" style="margin-top:16px">입장하기</button>
+    <button class="btn btn-primary" id="join-btn" style="margin-top:12px">입장하기</button>
   </div>
 </div>
 
-<!-- ② Arrangement Screen -->
+<!-- ② Lobby (입장완료) Screen -->
+<div id="screen-lobby" class="screen">
+  <div class="lobby-card">
+    <div class="lobby-emoji-big" id="lobby-emoji">🐶</div>
+    <div class="lobby-badge">✓ 입장완료</div>
+    <div class="lobby-nick" id="lobby-nick">닉네임</div>
+    <p class="lobby-hint">곧 게임이 시작됩니다!<br>관리자의 안내를 기다려주세요.</p>
+  </div>
+</div>
+
+<!-- ③ Arrangement Screen -->
 <div id="screen-arrangement" class="screen">
   <div class="arrangement-container">
     <div class="arrangement-header">
       <h2>🗂️ 빙고판 배치</h2>
-      <p style="color:#aaa; font-size:0.9rem; margin-bottom:10px">키워드를 선택하고 빙고판의 원하는 위치에 배치하세요</p>
+      <p style="color:#aaa; font-size:0.8rem; margin-bottom:8px">키워드를 선택 → 빙고판 칸을 터치</p>
       <div class="timer-bar"><div class="timer-fill" id="arrange-timer-fill" style="width:100%"></div></div>
     </div>
-    <div class="arrangement-layout">
-      <div class="keyword-pool">
-        <h3>📋 키워드 목록 <span id="pool-count" style="color:#aaa; font-weight:400">(선택: 0/16)</span></h3>
-        <div class="keyword-list" id="keyword-pool"></div>
-      </div>
-      <div class="board-section">
-        <h3>🎯 내 빙고판</h3>
-        <div class="bingo-grid" id="arrange-board"></div>
-        <div class="arrangement-actions">
-          <button class="btn-secondary" id="auto-arrange-btn">자동 배치</button>
-          <button class="btn btn-primary" id="submit-board-btn" style="flex:1">배치 완료!</button>
-        </div>
+    <div class="keyword-pool">
+      <h3>📋 키워드 <span id="pool-count" style="color:#aaa; font-weight:400">(0/16)</span></h3>
+      <div class="keyword-list" id="keyword-pool"></div>
+    </div>
+    <div class="board-section">
+      <h3>🎯 내 빙고판</h3>
+      <div class="bingo-grid" id="arrange-board"></div>
+      <div class="arrangement-actions">
+        <button class="btn-secondary" id="auto-arrange-btn">자동 배치</button>
+        <button class="btn btn-primary" id="submit-board-btn" style="flex:1">배치 완료!</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- ③ Waiting Screen -->
+<!-- ④ Waiting (배치완료 대기) Screen -->
 <div id="screen-waiting" class="screen">
-  <div class="waiting-card">
-    <div class="waiting-emoji" id="my-emoji-display">🐶</div>
-    <h2>준비 완료!</h2>
-    <p id="waiting-nickname" style="font-size:1.2rem; margin:10px 0; color:#f5a623"></p>
-    <p style="color:#aaa">관리자가 게임을 시작할 때까지 기다려주세요...</p>
+  <div class="lobby-card">
+    <div class="lobby-emoji-big" id="my-emoji-display">🐶</div>
+    <div class="lobby-badge">✓ 배치 완료</div>
+    <div class="lobby-nick" id="waiting-nickname">닉네임</div>
+    <p class="lobby-hint">관리자가 게임을 시작할 때까지<br>잠시만 기다려주세요!</p>
   </div>
 </div>
 
-<!-- ④ Game Screen -->
-<div id="screen-game" class="screen" style="align-items:stretch; padding:12px;">
-  <div class="game-container" style="margin:0 auto;">
+<!-- ⑤ Game Screen -->
+<div id="screen-game" class="screen" style="align-items:stretch; justify-content:flex-start; padding:10px;">
+  <div class="game-container">
     <div class="game-header">
       <div class="player-info">
         <span id="game-emoji">🐶</span>
@@ -207,18 +219,15 @@
       <div class="bingo-count">빙고 <span id="bingo-count">0</span>개</div>
       <div class="question-timer" id="question-timer">-</div>
     </div>
-
     <div class="question-box">
       <div id="question-area">
-        <p class="question-placeholder">관리자가 키워드를 선택하면 문제가 출제됩니다</p>
+        <p class="question-placeholder">관리자가 키워드를 선택하면<br>문제가 출제됩니다</p>
       </div>
     </div>
-
     <div class="ox-buttons">
       <button class="ox-btn o-btn" id="btn-o" disabled>⭕</button>
       <button class="ox-btn x-btn" id="btn-x" disabled>❌</button>
     </div>
-
     <div class="game-board-section">
       <h3>내 빙고판</h3>
       <div class="game-bingo-grid" id="game-board"></div>
@@ -226,32 +235,32 @@
   </div>
 </div>
 
-<!-- ⑤ Winner Screen -->
+<!-- ⑥ Winner Screen -->
 <div id="screen-winner" class="screen">
   <div class="winner-screen">
-    <div class="winner-emoji-big" id="winner-emoji">🏆</div>
-    <div class="winner-title">🎉 빙고! 우승!</div>
+    <div class="winner-emoji-big">🎉</div>
+    <div class="winner-title">🏆 게임 종료!</div>
     <div class="winner-name" id="winner-name"></div>
-    <p style="color:#aaa; margin-bottom:20px">빙고 3줄 달성!</p>
+    <div class="winner-bingo-info" id="winner-bingo-info"></div>
     <div class="winner-board">
       <div class="game-bingo-grid" id="winner-board-grid"></div>
     </div>
   </div>
 </div>
 
-<!-- Question Result Overlay -->
+<!-- Result Overlay -->
 <div class="result-overlay" id="result-overlay">
   <div class="result-card">
     <div class="result-title" id="result-kw"></div>
     <div class="result-correct-answer" id="result-answer"></div>
-    <div id="result-names-section">
-      <div style="color:#aaa; font-size:0.85rem; margin-bottom:6px">정답자</div>
+    <div>
+      <div style="color:#aaa; font-size:0.8rem; margin-bottom:4px">정답자</div>
       <div class="result-names" id="result-names"></div>
     </div>
   </div>
 </div>
 
-<!-- Voting Overlay -->
+<!-- Vote Overlay -->
 <div class="vote-overlay" id="vote-overlay">
   <div class="vote-card">
     <h2>🗳️ 다음 키워드 투표!</h2>
@@ -262,21 +271,16 @@
 
 <script>
 const EMOJIS = ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐔','🐧','🐦','🐤','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋'];
-
 const socket = io({ query: { role: 'participant' } });
 
-let myNickname = null;
-let myEmoji = null;
-let mySocketId = null;
-let selectedEmoji = null;
-let selectedChip = null;    // keyword chip element selected from pool
-let boardSlots = new Array(16).fill(null); // questionId per slot
-let myAnswer = null;
-let hasVoted = false;
-let arrangeTimer = null;
-let arrangeTimeLeft = 90;
+let myNickname = null, myEmoji = null, mySocketId = null;
+let selectedEmoji = null, selectedChip = null;
+let boardSlots = new Array(16).fill(null);
+let myAnswer = null, questionActive = false, hasVoted = false;
+let arrangeTimer = null, arrangeTimeLeft = 90;
+let currentQuestions = null, currentGameState = null;
 
-// ── Emoji Grid ───────────────────────────────────────────────────────────────
+// ── Emoji Grid ──
 const emojiGrid = document.getElementById('emoji-grid');
 EMOJIS.forEach(e => {
   const btn = document.createElement('button');
@@ -290,25 +294,30 @@ EMOJIS.forEach(e => {
   emojiGrid.appendChild(btn);
 });
 
-// ── Join ─────────────────────────────────────────────────────────────────────
+// ── Join ──
 document.getElementById('join-btn').onclick = () => {
   const nickname = document.getElementById('nickname-input').value.trim();
-  if (!nickname) { showError('닉네임을 입력해주세요'); return; }
-  if (!selectedEmoji) { showError('이모티콘을 선택해주세요'); return; }
+  if (!nickname) return showError('닉네임을 입력해주세요');
+  if (!selectedEmoji) return showError('이모티콘을 선택해주세요');
   socket.emit('participant:join', { nickname, emoji: selectedEmoji });
 };
 document.getElementById('nickname-input').addEventListener('keydown', e => {
   if (e.key === 'Enter') document.getElementById('join-btn').click();
 });
-
 function showError(msg) {
-  document.getElementById('join-error').textContent = msg;
-  setTimeout(() => { document.getElementById('join-error').textContent = ''; }, 3000);
+  const el = document.getElementById('join-error');
+  el.textContent = msg;
+  setTimeout(() => el.textContent = '', 3000);
 }
 
-// ── Arrangement ───────────────────────────────────────────────────────────────
+// ── Screen Switcher ──
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(`screen-${id}`).classList.add('active');
+}
+
+// ── Arrangement ──
 function buildArrangementScreen(questions) {
-  // Build pool
   const pool = document.getElementById('keyword-pool');
   pool.innerHTML = '';
   questions.forEach(q => {
@@ -320,14 +329,11 @@ function buildArrangementScreen(questions) {
     chip.onclick = () => selectChip(chip, q.id);
     pool.appendChild(chip);
   });
-
-  // Build board
   const board = document.getElementById('arrange-board');
   board.innerHTML = '';
   for (let i = 0; i < 16; i++) {
     const cell = document.createElement('div');
     cell.className = 'bingo-cell' + (boardSlots[i] ? ' filled' : '');
-    cell.dataset.slot = i;
     if (boardSlots[i]) {
       const q = questions.find(q => q.id === boardSlots[i]);
       cell.textContent = q ? q.keyword : '';
@@ -335,31 +341,22 @@ function buildArrangementScreen(questions) {
     cell.onclick = () => clickSlot(i, questions);
     board.appendChild(cell);
   }
-  updatePoolCount();
+  document.getElementById('pool-count').textContent = `(${boardSlots.filter(Boolean).length}/16)`;
 }
 
 function selectChip(chip, qId) {
   if (chip.classList.contains('placed')) return;
   document.querySelectorAll('.keyword-chip').forEach(c => c.classList.remove('selected'));
   document.querySelectorAll('.bingo-cell').forEach(c => c.classList.remove('target'));
-  if (selectedChip && selectedChip.dataset.id === qId) {
-    selectedChip = null;
-    return;
-  }
+  if (selectedChip && selectedChip.dataset.id === qId) { selectedChip = null; return; }
   chip.classList.add('selected');
   selectedChip = chip;
-  // Highlight empty slots
   document.querySelectorAll('.bingo-cell:not(.filled)').forEach(c => c.classList.add('target'));
 }
 
 function clickSlot(idx, questions) {
-  const cells = document.querySelectorAll('#arrange-board .bingo-cell');
   if (selectedChip) {
-    // Place selected chip into this slot
-    if (boardSlots[idx]) {
-      // Remove existing placement → return to pool
-      returnToPool(boardSlots[idx]);
-    }
+    if (boardSlots[idx]) returnToPool(boardSlots[idx]);
     boardSlots[idx] = selectedChip.dataset.id;
     selectedChip.classList.add('placed');
     selectedChip.classList.remove('selected');
@@ -367,8 +364,6 @@ function clickSlot(idx, questions) {
     document.querySelectorAll('.bingo-cell').forEach(c => c.classList.remove('target'));
     buildArrangementScreen(questions);
   } else if (boardSlots[idx]) {
-    // Remove from slot → return to pool
-    returnToPool(boardSlots[idx]);
     boardSlots[idx] = null;
     buildArrangementScreen(questions);
   }
@@ -376,14 +371,15 @@ function clickSlot(idx, questions) {
 
 function returnToPool(qId) {
   const chip = document.querySelector(`.keyword-chip[data-id="${qId}"]`);
-  if (chip) {
-    chip.classList.remove('placed', 'selected');
-  }
+  if (chip) chip.classList.remove('placed', 'selected');
 }
 
-function updatePoolCount() {
-  const placed = boardSlots.filter(Boolean).length;
-  document.getElementById('pool-count').textContent = `(배치: ${placed}/16)`;
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
 document.getElementById('auto-arrange-btn').onclick = () => {
@@ -392,13 +388,12 @@ document.getElementById('auto-arrange-btn').onclick = () => {
   shuffle(unplaced);
   let ui = 0;
   for (let i = 0; i < 16; i++) {
-    if (!boardSlots[i]) boardSlots[i] = unplaced[ui++];
+    if (!boardSlots[i] && ui < unplaced.length) boardSlots[i] = unplaced[ui++];
   }
   buildArrangementScreen(currentQuestions);
 };
 
 document.getElementById('submit-board-btn').onclick = () => {
-  // Auto-fill remaining
   if (!currentQuestions) return;
   const unplaced = currentQuestions.map(q => q.id).filter(id => !boardSlots.includes(id));
   shuffle(unplaced);
@@ -411,15 +406,20 @@ document.getElementById('submit-board-btn').onclick = () => {
   document.getElementById('submit-board-btn').disabled = true;
 };
 
-function shuffle(arr) {
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
+function startArrangeTimer() {
+  if (arrangeTimer) return;
+  arrangeTimeLeft = 90;
+  arrangeTimer = setInterval(() => {
+    arrangeTimeLeft--;
+    document.getElementById('arrange-timer-fill').style.width = (arrangeTimeLeft / 90 * 100) + '%';
+    if (arrangeTimeLeft <= 0) {
+      clearInterval(arrangeTimer); arrangeTimer = null;
+      document.getElementById('submit-board-btn').click();
+    }
+  }, 1000);
 }
 
-// ── Game Board ────────────────────────────────────────────────────────────────
+// ── Game Board ──
 function buildGameBoard(board, cellStatus, currentQId, questions) {
   const grid = document.getElementById('game-board');
   grid.innerHTML = '';
@@ -431,95 +431,71 @@ function buildGameBoard(board, cellStatus, currentQId, questions) {
     if (status === 'correct') cls += 'correct';
     else if (status === 'wrong') cls += 'wrong';
     else cls += 'idle';
-    if (qId === currentQId) cls += ' current';
+    if (qId === currentQId && !status) cls += ' current';
     cell.className = cls;
     cell.textContent = q ? q.keyword : '';
     grid.appendChild(cell);
   });
 }
 
-// ── O/X Buttons ──────────────────────────────────────────────────────────────
+// ── O/X Answer (changeable) ──
 document.getElementById('btn-o').onclick = () => submitAnswer('O');
 document.getElementById('btn-x').onclick = () => submitAnswer('X');
 
 function submitAnswer(ans) {
-  if (myAnswer) return;
+  if (!questionActive) return;
   myAnswer = ans;
   socket.emit('participant:answer', ans);
-  document.getElementById('btn-o').classList.add('answered');
-  document.getElementById('btn-x').classList.add('answered');
-  document.getElementById(`btn-${ans.toLowerCase()}`).classList.add('my-answer');
-  document.getElementById('btn-o').disabled = true;
-  document.getElementById('btn-x').disabled = true;
+  // Update button states — allow changing
+  document.getElementById('btn-o').classList.toggle('my-answer', ans === 'O');
+  document.getElementById('btn-x').classList.toggle('my-answer', ans === 'X');
 }
 
-// ── Screen Switcher ───────────────────────────────────────────────────────────
-function showScreen(id) {
-  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-  document.getElementById(`screen-${id}`).classList.add('active');
-}
-
-// ── Socket Events ─────────────────────────────────────────────────────────────
-let currentQuestions = null;
-let currentGameState = null;
-
+// ── Socket Events ──
 socket.on('connect', () => { mySocketId = socket.id; });
-
-socket.on('error', msg => { showError(msg); });
+socket.on('error', msg => showError(msg));
 
 socket.on('participant:joined', ({ nickname, emoji }) => {
   myNickname = nickname;
   myEmoji = emoji;
+  document.getElementById('lobby-emoji').textContent = emoji;
+  document.getElementById('lobby-nick').textContent = nickname;
+  showScreen('lobby');
 });
 
 socket.on('participant:boardConfirmed', () => {
   showScreen('waiting');
-  document.getElementById('waiting-nickname').textContent = `${myEmoji} ${myNickname}`;
+  document.getElementById('waiting-nickname').textContent = myNickname;
   document.getElementById('my-emoji-display').textContent = myEmoji;
 });
 
 socket.on('game:state', (gs) => {
   currentGameState = gs;
   if (gs.questions) currentQuestions = gs.questions;
-
   const me = mySocketId ? gs.participants[mySocketId] : null;
-  if (!me) {
-    // Not yet joined — stay on join if lobby/setup
-    if (gs.phase === 'lobby' || gs.phase === 'arrangement') {
-      // Check if this page just loaded mid-game
-    }
-    return;
-  }
+  if (!me) return;
 
-  // Update bingo count
   document.getElementById('bingo-count').textContent = me.bingos || 0;
   document.getElementById('game-emoji').textContent = myEmoji || me.emoji;
   document.getElementById('game-nickname').textContent = myNickname || me.nickname;
 
   if (gs.phase === 'arrangement') {
-    boardSlots = me.board ? [...me.board] : new Array(16).fill(null);
-    buildArrangementScreen(currentQuestions);
     if (!me.boardReady) {
+      boardSlots = me.board ? [...me.board] : new Array(16).fill(null);
+      buildArrangementScreen(currentQuestions);
       showScreen('arrangement');
       startArrangeTimer();
     } else {
       showScreen('waiting');
     }
   } else if (gs.phase === 'waiting') {
-    if (!me.boardReady) {
-      // Final auto-arrange
-      const unplaced = currentQuestions.map(q => q.id).filter(id => !boardSlots.includes(id));
-      shuffle(unplaced);
-      let ui = 0;
-      for (let i = 0; i < 16; i++) {
-        if (!boardSlots[i]) boardSlots[i] = unplaced[ui++];
-      }
-      socket.emit('participant:submitBoard', boardSlots);
-    }
     showScreen('waiting');
   } else if (gs.phase === 'game' || gs.phase === 'voting') {
     showScreen('game');
     if (me.board) buildGameBoard(me.board, me.cellStatus, gs.currentQId, currentQuestions);
+  } else if (gs.phase === 'lobby') {
+    // If already joined, show lobby screen
+    if (myNickname) showScreen('lobby');
   } else if (gs.phase === 'ended') {
     document.getElementById('vote-overlay').classList.remove('show');
     document.getElementById('result-overlay').classList.remove('show');
@@ -528,25 +504,25 @@ socket.on('game:state', (gs) => {
 
 socket.on('game:waitForAdmin', () => {
   showScreen('game');
-  document.getElementById('question-area').innerHTML = '<p class="question-placeholder">관리자가 첫 번째 키워드를 선택합니다...</p>';
+  document.getElementById('question-area').innerHTML = '<p class="question-placeholder">관리자가 키워드를 선택하면<br>문제가 출제됩니다</p>';
   document.getElementById('btn-o').disabled = true;
   document.getElementById('btn-x').disabled = true;
+  questionActive = false;
 });
 
 socket.on('game:question', ({ qId, question }) => {
   myAnswer = null;
+  questionActive = true;
   document.getElementById('btn-o').disabled = false;
   document.getElementById('btn-x').disabled = false;
-  document.getElementById('btn-o').classList.remove('answered', 'my-answer');
-  document.getElementById('btn-x').classList.remove('answered', 'my-answer');
+  document.getElementById('btn-o').classList.remove('my-answer');
+  document.getElementById('btn-x').classList.remove('my-answer');
   document.getElementById('vote-overlay').classList.remove('show');
   document.getElementById('result-overlay').classList.remove('show');
-
   const kw = currentQuestions?.find(q => q.id === qId)?.keyword || '';
   document.getElementById('question-area').innerHTML = `
     <div class="question-keyword">[ ${kw} ]</div>
-    <div class="question-text">${question}</div>
-  `;
+    <div class="question-text">${question}</div>`;
   document.getElementById('question-timer').textContent = '10';
   showScreen('game');
 });
@@ -554,12 +530,14 @@ socket.on('game:question', ({ qId, question }) => {
 socket.on('game:timer', (t) => {
   document.getElementById('question-timer').textContent = t;
   if (t <= 0) {
+    questionActive = false;
     document.getElementById('btn-o').disabled = true;
     document.getElementById('btn-x').disabled = true;
   }
 });
 
 socket.on('game:questionResult', ({ qId, correctAnswer, question, correctNicknames }) => {
+  questionActive = false;
   const kw = currentQuestions?.find(q => q.id === qId)?.keyword || '';
   document.getElementById('result-kw').textContent = `[ ${kw} ] ${question}`;
   document.getElementById('result-answer').textContent = correctAnswer === 'O' ? '⭕' : '❌';
@@ -580,7 +558,6 @@ socket.on('game:voting', ({ candidates }) => {
     item.dataset.id = c.id;
     item.innerHTML = `<div class="kw">${c.keyword}</div><div class="count">0</div>`;
     item.onclick = () => {
-      if (hasVoted) return;
       hasVoted = true;
       document.querySelectorAll('.vote-item').forEach(v => v.classList.remove('voted'));
       item.classList.add('voted');
@@ -594,8 +571,7 @@ socket.on('game:voting', ({ candidates }) => {
 
 socket.on('game:voteTally', (tally) => {
   document.querySelectorAll('.vote-item').forEach(item => {
-    const cnt = tally[item.dataset.id] || 0;
-    item.querySelector('.count').textContent = cnt;
+    item.querySelector('.count').textContent = tally[item.dataset.id] || 0;
   });
 });
 
@@ -604,49 +580,45 @@ socket.on('game:voteTimer', (t) => {
   if (t <= 0) document.getElementById('vote-overlay').classList.remove('show');
 });
 
-socket.on('game:ended', ({ winner, emoji, board, cellStatus }) => {
+socket.on('game:ended', ({ winner, emoji, board, cellStatus, bingos }) => {
   document.getElementById('vote-overlay').classList.remove('show');
   document.getElementById('result-overlay').classList.remove('show');
   if (winner) {
     document.getElementById('winner-name').textContent = `${emoji || '🏆'} ${winner}`;
-    document.getElementById('winner-emoji').textContent = '🎉';
-    // Build winner board
+    document.getElementById('winner-bingo-info').textContent = `빙고 ${bingos || 0}줄 달성!`;
     if (board && cellStatus && currentQuestions) {
       const grid = document.getElementById('winner-board-grid');
       grid.innerHTML = '';
       board.forEach(qId => {
         const q = currentQuestions.find(q => q.id === qId);
         const cell = document.createElement('div');
-        const status = cellStatus[qId];
-        cell.className = 'winner-cell game-cell ' + (status === 'correct' ? 'correct' : status === 'wrong' ? 'wrong' : 'idle');
+        const st = cellStatus[qId];
+        cell.className = 'winner-cell game-cell ' + (st === 'correct' ? 'correct' : st === 'wrong' ? 'wrong' : 'idle');
         cell.textContent = q ? q.keyword : '';
         grid.appendChild(cell);
       });
     }
-    showScreen('winner');
   } else {
-    // No winner - all questions used
-    document.getElementById('winner-name').textContent = '모든 문제 완료!';
-    document.getElementById('winner-emoji').textContent = '🎊';
-    showScreen('winner');
+    document.getElementById('winner-name').textContent = '우승자 없음';
+    document.getElementById('winner-bingo-info').textContent = '모든 문제가 종료되었습니다';
   }
+  showScreen('winner');
 });
 
-// Arrange timer
-function startArrangeTimer() {
-  if (arrangeTimer) return;
-  arrangeTimeLeft = 90;
-  arrangeTimer = setInterval(() => {
-    arrangeTimeLeft--;
-    const pct = (arrangeTimeLeft / 90) * 100;
-    document.getElementById('arrange-timer-fill').style.width = pct + '%';
-    if (arrangeTimeLeft <= 0) {
-      clearInterval(arrangeTimer);
-      arrangeTimer = null;
-      document.getElementById('submit-board-btn').click();
-    }
-  }, 1000);
-}
+socket.on('game:newGame', () => {
+  // Reset local state for new game
+  boardSlots = new Array(16).fill(null);
+  myAnswer = null;
+  questionActive = false;
+  if (arrangeTimer) { clearInterval(arrangeTimer); arrangeTimer = null; }
+  if (myNickname) {
+    showScreen('lobby');
+    document.getElementById('lobby-emoji').textContent = myEmoji;
+    document.getElementById('lobby-nick').textContent = myNickname;
+    document.getElementById('submit-board-btn').textContent = '배치 완료!';
+    document.getElementById('submit-board-btn').disabled = false;
+  }
+});
 </script>
 </body>
 </html>

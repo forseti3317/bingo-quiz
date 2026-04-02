@@ -12,9 +12,9 @@
   .topbar { background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
   .topbar h1 { font-size: 1.2rem; background: linear-gradient(135deg, #f093fb, #f5a623); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
   .phase-badge { padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: rgba(245,166,35,0.2); color: #f5a623; border: 1px solid #f5a623; }
+  .topbar-right { display: flex; gap: 8px; align-items: center; }
 
   .layout { display: grid; grid-template-columns: 380px 1fr; gap: 0; min-height: calc(100vh - 52px); }
-
   .left-panel { background: rgba(255,255,255,0.03); border-right: 1px solid rgba(255,255,255,0.08); padding: 20px; overflow-y: auto; }
   .panel-section { margin-bottom: 24px; }
   .panel-section h3 { font-size: 0.9rem; color: #f5a623; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
@@ -31,6 +31,10 @@
   .btn-info:hover { background: rgba(99,179,237,0.4); }
   .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
   .btn-block { width: 100%; margin-bottom: 8px; }
+
+  /* Music button */
+  .music-btn { padding: 6px 12px; border-radius: 8px; font-size: 0.8rem; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); background: rgba(255,255,255,0.05); color: #aaa; transition: all 0.2s; }
+  .music-btn.playing { background: rgba(245,166,35,0.2); border-color: #f5a623; color: #f5a623; }
 
   .question-editor { background: rgba(255,255,255,0.05); border-radius: 12px; padding: 16px; margin-bottom: 16px; border: 1px solid rgba(255,255,255,0.08); }
   .q-row { margin-bottom: 10px; }
@@ -52,16 +56,15 @@
   .q-item .q-del { color: #f05d5d; font-size: 0.75rem; margin-left: 4px; padding: 2px 6px; background: rgba(240,93,93,0.1); border-radius: 4px; cursor: pointer; }
   .q-item .q-del:hover { background: rgba(240,93,93,0.3); }
 
-  /* ── Saved Sets Section ──────────────────────────────────────────────────── */
   .sets-section { background: rgba(99,179,237,0.05); border: 1px solid rgba(99,179,237,0.15); border-radius: 12px; padding: 14px; margin-bottom: 16px; }
-  .sets-section h4 { font-size: 0.85rem; color: #63b3ed; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+  .sets-section h4 { font-size: 0.85rem; color: #63b3ed; margin-bottom: 10px; }
   .set-list { max-height: 160px; overflow-y: auto; }
-  .set-item { display: flex; align-items: center; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 5px; border: 1px solid rgba(255,255,255,0.06); transition: background 0.15s; }
+  .set-item { display: flex; align-items: center; padding: 8px 10px; background: rgba(255,255,255,0.04); border-radius: 8px; margin-bottom: 5px; border: 1px solid rgba(255,255,255,0.06); }
   .set-item:hover { background: rgba(255,255,255,0.08); }
   .set-item .set-name { flex: 1; font-size: 0.85rem; font-weight: 600; }
   .set-item .set-meta { font-size: 0.7rem; color: #888; margin-right: 8px; }
   .set-item .set-actions { display: flex; gap: 4px; }
-  .set-item .set-actions button { padding: 3px 8px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; border: none; font-weight: 600; transition: all 0.15s; }
+  .set-item .set-actions button { padding: 3px 8px; border-radius: 5px; font-size: 0.7rem; cursor: pointer; border: none; font-weight: 600; }
   .set-load { background: rgba(67,233,123,0.15); color: #43e97b; }
   .set-load:hover { background: rgba(67,233,123,0.3); }
   .set-del { background: rgba(240,93,93,0.15); color: #f05d5d; }
@@ -69,16 +72,13 @@
   .set-edit { background: rgba(245,166,35,0.15); color: #f5a623; }
   .set-edit:hover { background: rgba(245,166,35,0.3); }
   .set-empty { text-align: center; color: #555; font-size: 0.8rem; padding: 12px; }
-
   .save-row { display: flex; gap: 6px; margin-top: 10px; }
   .save-row input { flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; color: #fff; font-size: 0.85rem; outline: none; }
-  .save-row input:focus { border-color: #63b3ed; }
   .save-row input::placeholder { color: #555; }
 
   .participant-list { display: flex; flex-wrap: wrap; gap: 8px; }
   .p-chip { display: flex; align-items: center; gap: 6px; padding: 6px 12px; background: rgba(255,255,255,0.07); border-radius: 20px; font-size: 0.85rem; }
   .p-chip.ready { background: rgba(67,233,123,0.15); border: 1px solid rgba(67,233,123,0.3); }
-  .p-ready-count { color: #43e97b; font-size: 0.85rem; }
 
   .right-panel { padding: 20px; overflow-y: auto; }
 
@@ -104,8 +104,20 @@
   .mini-cell { aspect-ratio: 1; border-radius: 4px; display: flex; align-items: center; justify-content: center; font-size: 0.45rem; text-align: center; padding: 1px; word-break: keep-all; line-height: 1.2; font-weight: 600; }
   .mini-cell.idle { background: rgba(255,255,255,0.06); color: #888; }
   .mini-cell.correct { background: rgba(67,233,123,0.35); color: #43e97b; }
-  .mini-cell.wrong { background: rgba(100,100,100,0.2); color: #444; }
+  .mini-cell.wrong { background: rgba(255,70,70,0.25); color: #ff5252; }
   .mini-cell.current { background: rgba(245,166,35,0.3); color: #f5a623; }
+
+  /* Winner display on admin */
+  .winner-display { text-align: center; padding: 40px 20px; }
+  .winner-display .trophy { font-size: 4rem; margin-bottom: 12px; }
+  .winner-display .w-title { font-size: 2rem; font-weight: 900; color: #f5a623; margin-bottom: 8px; }
+  .winner-display .w-name { font-size: 1.5rem; font-weight: 700; color: #43e97b; margin-bottom: 6px; }
+  .winner-display .w-info { color: #aaa; margin-bottom: 20px; }
+  .winner-board-admin { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; max-width: 320px; margin: 0 auto 24px; }
+  .winner-board-admin .wb-cell { aspect-ratio: 1; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; text-align: center; padding: 4px; word-break: keep-all; line-height: 1.2; }
+  .wb-cell.correct { background: rgba(67,233,123,0.3); border: 2px solid #43e97b; color: #43e97b; }
+  .wb-cell.wrong { background: rgba(255,70,70,0.2); border: 2px solid rgba(255,70,70,0.5); color: #ff5252; }
+  .wb-cell.idle { background: rgba(255,255,255,0.06); border: 2px solid rgba(255,255,255,0.1); color: #888; }
 
   .section-title { font-size: 1.2rem; font-weight: 700; margin-bottom: 16px; }
   .hint { color: #666; font-size: 0.8rem; margin-top: 6px; }
@@ -115,7 +127,7 @@
   .toast.success { background: rgba(67,233,123,0.9); color: #000; }
   .toast.error { background: rgba(240,93,93,0.9); color: #fff; }
 
-  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar { width: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
 </style>
@@ -124,25 +136,21 @@
 
 <div class="topbar">
   <h1>🎯 빙고 퀴즈 관리자</h1>
-  <div style="display:flex; gap:10px; align-items:center;">
+  <div class="topbar-right">
+    <button class="music-btn" id="music-btn" onclick="toggleMusic()">🔇 음악 OFF</button>
     <span class="phase-badge" id="phase-badge">설정 중</span>
     <button class="btn btn-danger btn-sm" id="reset-btn">초기화</button>
   </div>
 </div>
-
-<!-- Toast notification -->
 <div class="toast" id="toast"></div>
 
 <div class="layout">
   <div class="left-panel">
 
-    <!-- Saved Question Sets -->
     <div class="panel-section">
       <div class="sets-section">
         <h4>💾 저장된 문제 세트</h4>
-        <div class="set-list" id="set-list">
-          <div class="set-empty">저장된 문제 세트가 없습니다</div>
-        </div>
+        <div class="set-list" id="set-list"><div class="set-empty">저장된 문제 세트가 없습니다</div></div>
         <div class="save-row">
           <input type="text" id="set-name-input" placeholder="세트 이름 입력..." maxlength="30" />
           <button class="btn btn-info btn-sm" onclick="saveSet()">저장</button>
@@ -150,7 +158,6 @@
       </div>
     </div>
 
-    <!-- Question Editor -->
     <div class="panel-section" id="section-editor">
       <h3>문제 편집</h3>
       <div class="question-editor">
@@ -171,25 +178,20 @@
         </div>
         <button class="btn btn-success btn-sm" onclick="addQuestion()" style="width:100%">+ 문제 추가</button>
       </div>
-
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
         <span style="font-size:0.85rem; color:#aaa">문제 목록 <span class="count-badge" id="q-count">0/16</span></span>
-        <button class="btn btn-sm" onclick="loadSample()" style="background:rgba(255,255,255,0.08); color:#ccc; font-size:0.75rem;">샘플 로드</button>
       </div>
       <div class="q-list" id="q-list"></div>
-
-      <button class="btn btn-primary btn-block" id="save-q-btn" style="margin-top:12px" onclick="applyQuestions()">문제 적용 & 로비 오픈</button>
+      <button class="btn btn-primary btn-block" style="margin-top:12px" onclick="applyQuestions()">문제 적용 & 로비 오픈</button>
       <p class="hint" id="save-hint">16개의 문제를 작성해야 로비를 열 수 있습니다</p>
     </div>
 
-    <!-- Participants -->
     <div class="panel-section">
       <h3>참가자 <span class="count-badge" id="p-count">0명</span></h3>
       <div class="participant-list" id="p-list"></div>
-      <p class="p-ready-count" id="p-ready-count" style="margin-top:8px; font-size:0.8rem;"></p>
+      <p id="p-ready-count" style="margin-top:8px; font-size:0.8rem; color:#43e97b;"></p>
     </div>
 
-    <!-- Game Controls -->
     <div class="panel-section">
       <h3>게임 제어</h3>
       <button class="btn btn-success btn-block" id="start-arrange-btn" disabled onclick="startArrangement()">배치 단계 시작</button>
@@ -207,14 +209,55 @@
 
 <script>
 const socket = io({ query: { role: 'admin' } });
+let questions = [], gameState = null, selectedAnswer = null, editingIdx = null, currentSetId = null;
+let lastEndedData = null; // store winner data for admin display
 
-let questions = [];
-let gameState = null;
-let selectedAnswer = null;
-let editingIdx = null;
-let currentSetId = null;  // ID of currently loaded set
+// ── Music (Web Audio API) ────────────────────────────────────────────────────
+let musicCtx = null, musicPlaying = false, musicTimer = null;
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+function initMusicCtx() {
+  if (!musicCtx) musicCtx = new (window.AudioContext || window.webkitAudioContext)();
+}
+
+function playTone(freq, start, dur, type, vol) {
+  const o = musicCtx.createOscillator();
+  const g = musicCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.setValueAtTime(vol, start);
+  g.gain.exponentialRampToValueAtTime(0.001, start + dur * 0.95);
+  o.connect(g).connect(musicCtx.destination);
+  o.start(start);
+  o.stop(start + dur);
+}
+
+function playMusicBar() {
+  if (!musicPlaying) return;
+  const t = musicCtx.currentTime + 0.05;
+  const b = 0.2;
+  const melody = [523,587,659,784,880,784,659,587,523,659,784,880,1047,880,784,659];
+  melody.forEach((f, i) => playTone(f, t + i * b, b * 0.7, 'square', 0.03));
+  [0,4,8,12].forEach(i => playTone(262, t + i * b, b * 3.5, 'triangle', 0.05));
+  for (let i = 0; i < 16; i += 2) playTone(100, t + i * b, b * 0.2, 'sine', 0.06);
+  musicTimer = setTimeout(playMusicBar, melody.length * b * 1000);
+}
+
+function toggleMusic() {
+  initMusicCtx();
+  musicPlaying = !musicPlaying;
+  const btn = document.getElementById('music-btn');
+  if (musicPlaying) {
+    playMusicBar();
+    btn.textContent = '🔊 음악 ON';
+    btn.classList.add('playing');
+  } else {
+    clearTimeout(musicTimer);
+    btn.textContent = '🔇 음악 OFF';
+    btn.classList.remove('playing');
+  }
+}
+
+// ── Toast ──
 function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -222,57 +265,43 @@ function showToast(msg, type = 'success') {
   setTimeout(() => t.classList.remove('show'), 2500);
 }
 
-// ── Saved Question Sets (REST API) ──────────────────────────────────────────
+// ── Saved Sets ──
 async function fetchSets() {
   try {
     const res = await fetch('/api/sets');
-    const sets = await res.json();
-    renderSetList(sets);
-  } catch (e) {
-    console.error('세트 목록 로드 실패:', e);
-  }
+    renderSetList(await res.json());
+  } catch (e) { console.error(e); }
 }
 
 function renderSetList(sets) {
   const list = document.getElementById('set-list');
-  if (!sets || sets.length === 0) {
-    list.innerHTML = '<div class="set-empty">저장된 문제 세트가 없습니다</div>';
-    return;
-  }
+  if (!sets || sets.length === 0) { list.innerHTML = '<div class="set-empty">저장된 문제 세트가 없습니다</div>'; return; }
   list.innerHTML = sets.map(s => {
     const date = new Date(s.updatedAt || s.createdAt).toLocaleDateString('ko-KR', { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' });
-    const isActive = s.id === currentSetId;
-    return `
-      <div class="set-item" style="${isActive ? 'border-color:#63b3ed; background:rgba(99,179,237,0.1);' : ''}">
-        <span class="set-name">${s.name} ${isActive ? '✓' : ''}</span>
-        <span class="set-meta">${s.questionCount}문제 · ${date}</span>
-        <div class="set-actions">
-          <button class="set-load" onclick="loadSet('${s.id}')">불러오기</button>
-          <button class="set-edit" onclick="updateSet('${s.id}')">덮어쓰기</button>
-          <button class="set-del" onclick="deleteSet('${s.id}', '${s.name}')">삭제</button>
-        </div>
-      </div>`;
+    const active = s.id === currentSetId;
+    return `<div class="set-item" style="${active ? 'border-color:#63b3ed;background:rgba(99,179,237,0.1);' : ''}">
+      <span class="set-name">${s.name} ${active ? '✓' : ''}</span>
+      <span class="set-meta">${s.questionCount}문제 · ${date}</span>
+      <div class="set-actions">
+        <button class="set-load" onclick="loadSet('${s.id}')">불러오기</button>
+        <button class="set-edit" onclick="updateSet('${s.id}')">덮어쓰기</button>
+        <button class="set-del" onclick="deleteSet('${s.id}','${s.name.replace(/'/g,"\\'")}')">삭제</button>
+      </div></div>`;
   }).join('');
 }
 
 async function saveSet() {
   const name = document.getElementById('set-name-input').value.trim();
-  if (!name) { showToast('세트 이름을 입력하세요', 'error'); return; }
-  if (questions.length === 0) { showToast('저장할 문제가 없습니다', 'error'); return; }
+  if (!name) return showToast('세트 이름을 입력하세요', 'error');
+  if (questions.length === 0) return showToast('저장할 문제가 없습니다', 'error');
   try {
-    const res = await fetch('/api/sets', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, questions })
-    });
+    const res = await fetch('/api/sets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, questions }) });
     const set = await res.json();
     currentSetId = set.id;
     document.getElementById('set-name-input').value = '';
     showToast(`"${name}" 저장 완료!`);
     fetchSets();
-  } catch (e) {
-    showToast('저장 실패', 'error');
-  }
+  } catch (e) { showToast('저장 실패', 'error'); }
 }
 
 async function loadSet(id) {
@@ -284,27 +313,18 @@ async function loadSet(id) {
     renderQList();
     showToast(`"${set.name}" 불러오기 완료!`);
     fetchSets();
-  } catch (e) {
-    showToast('불러오기 실패', 'error');
-  }
+  } catch (e) { showToast('불러오기 실패', 'error'); }
 }
 
 async function updateSet(id) {
-  if (questions.length === 0) { showToast('저장할 문제가 없습니다', 'error'); return; }
+  if (questions.length === 0) return showToast('저장할 문제가 없습니다', 'error');
   if (!confirm('현재 문제 목록으로 덮어쓰시겠습니까?')) return;
   try {
-    const res = await fetch(`/api/sets/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ questions })
-    });
-    const set = await res.json();
-    currentSetId = set.id;
+    await fetch(`/api/sets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ questions }) });
+    currentSetId = id;
     showToast('덮어쓰기 완료!');
     fetchSets();
-  } catch (e) {
-    showToast('덮어쓰기 실패', 'error');
-  }
+  } catch (e) { showToast('실패', 'error'); }
 }
 
 async function deleteSet(id, name) {
@@ -312,37 +332,30 @@ async function deleteSet(id, name) {
   try {
     await fetch(`/api/sets/${id}`, { method: 'DELETE' });
     if (currentSetId === id) currentSetId = null;
-    showToast(`"${name}" 삭제 완료`);
+    showToast(`삭제 완료`);
     fetchSets();
-  } catch (e) {
-    showToast('삭제 실패', 'error');
-  }
+  } catch (e) { showToast('실패', 'error'); }
 }
 
-// Init: load saved sets
 fetchSets();
 
-// ── Answer Selection ──────────────────────────────────────────────────────────
+// ── Question Editor ──
 function selectAnswer(ans) {
   selectedAnswer = ans;
   document.getElementById('ans-o').className = 'answer-btn' + (ans === 'O' ? ' o-selected' : '');
   document.getElementById('ans-x').className = 'answer-btn' + (ans === 'X' ? ' x-selected' : '');
 }
 
-// ── Question Management ───────────────────────────────────────────────────────
 function addQuestion() {
   const kw = document.getElementById('kw-input').value.trim();
   const q = document.getElementById('q-input').value.trim();
-  if (!kw || !q || !selectedAnswer) {
-    alert('키워드, 문제 내용, 정답을 모두 입력해주세요');
-    return;
-  }
+  if (!kw || !q || !selectedAnswer) return alert('키워드, 문제 내용, 정답을 모두 입력해주세요');
   if (editingIdx !== null) {
     questions[editingIdx] = { keyword: kw, question: q, answer: selectedAnswer };
     editingIdx = null;
     document.querySelector('[onclick="addQuestion()"]').textContent = '+ 문제 추가';
   } else {
-    if (questions.length >= 16) { alert('최대 16개까지 입력 가능합니다'); return; }
+    if (questions.length >= 16) return alert('최대 16개까지 입력 가능합니다');
     questions.push({ keyword: kw, question: q, answer: selectedAnswer });
   }
   clearEditor();
@@ -352,7 +365,6 @@ function addQuestion() {
 function clearEditor() {
   document.getElementById('kw-input').value = '';
   document.getElementById('q-input').value = '';
-  selectAnswer(null);
   selectedAnswer = null;
   document.getElementById('ans-o').className = 'answer-btn';
   document.getElementById('ans-x').className = 'answer-btn';
@@ -364,26 +376,15 @@ function renderQList() {
   questions.forEach((q, i) => {
     const item = document.createElement('div');
     item.className = 'q-item';
-    item.innerHTML = `
-      <span class="q-num">${i+1}</span>
-      <span class="q-kw">${q.keyword}</span>
-      <span class="q-ans">${q.answer === 'O' ? '⭕' : '❌'}</span>
-      <span class="q-del" onclick="deleteQ(${i}, event)">삭제</span>
-    `;
+    item.innerHTML = `<span class="q-num">${i+1}</span><span class="q-kw">${q.keyword}</span><span class="q-ans">${q.answer === 'O' ? '⭕' : '❌'}</span><span class="q-del" onclick="deleteQ(${i},event)">삭제</span>`;
     item.onclick = () => editQ(i);
     list.appendChild(item);
   });
   document.getElementById('q-count').textContent = `${questions.length}/16`;
-  document.getElementById('save-hint').textContent = questions.length < 16
-    ? `${16 - questions.length}개 더 추가해야 합니다` : '저장 준비 완료!';
+  document.getElementById('save-hint').textContent = questions.length < 16 ? `${16 - questions.length}개 더 추가해야 합니다` : '저장 준비 완료!';
 }
 
-function deleteQ(i, e) {
-  e.stopPropagation();
-  questions.splice(i, 1);
-  renderQList();
-}
-
+function deleteQ(i, e) { e.stopPropagation(); questions.splice(i, 1); renderQList(); }
 function editQ(i) {
   const q = questions[i];
   document.getElementById('kw-input').value = q.keyword;
@@ -394,92 +395,93 @@ function editQ(i) {
 }
 
 function applyQuestions() {
-  if (questions.length !== 16) { alert('16개의 문제가 필요합니다'); return; }
+  if (questions.length !== 16) return alert('16개의 문제가 필요합니다');
   socket.emit('admin:setQuestions', questions);
   socket.emit('admin:openLobby');
 }
 
-function loadSample() {
-  questions = [
-    { keyword: '독도', question: '독도는 대한민국 영토이다', answer: 'O' },
-    { keyword: '한강', question: '한강은 서울을 가로지르는 강이다', answer: 'O' },
-    { keyword: '김치', question: '김치는 일본 전통 음식이다', answer: 'X' },
-    { keyword: '태권도', question: '태권도는 2000년 시드니 올림픽 정식 종목이 됐다', answer: 'O' },
-    { keyword: '세종대왕', question: '세종대왕은 조선 4대 왕이다', answer: 'O' },
-    { keyword: '한글', question: '한글은 총 40개의 자모로 구성된다', answer: 'X' },
-    { keyword: '불국사', question: '불국사는 경주에 위치한다', answer: 'O' },
-    { keyword: '삼성', question: '삼성은 미국 기업이다', answer: 'X' },
-    { keyword: '인천공항', question: '인천국제공항은 세계 최고 수준의 공항으로 평가받는다', answer: 'O' },
-    { keyword: 'BTS', question: 'BTS는 그래미상을 수상했다', answer: 'X' },
-    { keyword: '축구', question: '한국은 2002 월드컵에서 4강에 진출했다', answer: 'O' },
-    { keyword: '제주도', question: '제주도는 한국에서 가장 큰 섬이다', answer: 'O' },
-    { keyword: '서울', question: '서울의 인구는 1000만 명을 넘는다', answer: 'O' },
-    { keyword: '광복절', question: '광복절은 매년 8월 15일이다', answer: 'O' },
-    { keyword: '이순신', question: '이순신 장군은 거북선을 직접 발명했다', answer: 'X' },
-    { keyword: '백두산', question: '백두산은 한반도에서 가장 높은 산이다', answer: 'O' }
-  ];
-  renderQList();
-}
-
-// ── Game Controls ─────────────────────────────────────────────────────────────
+// ── Game Controls ──
 function startArrangement() { socket.emit('admin:startArrangement'); }
 function startGame() { socket.emit('admin:startGame'); }
 
 document.getElementById('reset-btn').onclick = () => {
-  if (confirm('게임을 초기화 하시겠습니까?')) {
-    questions = [];
-    currentSetId = null;
-    renderQList();
-    socket.emit('admin:reset');
-    fetchSets();
+  if (confirm('게임을 완전히 초기화 하시겠습니까?\n(참가자 연결 해제됨)')) {
+    questions = []; currentSetId = null;
+    renderQList(); socket.emit('admin:reset'); fetchSets();
   }
 };
 
-// ── Render Right Panel ────────────────────────────────────────────────────────
+// ── Right Panel Render ──
 function renderRightPanel(gs) {
   const rp = document.getElementById('right-panel');
-  const phase = gs.phase;
 
-  if (phase === 'setup' || phase === 'lobby') {
-    rp.innerHTML = `
-      <div class="section-title">참가자 현황</div>
-      <div class="boards-grid" id="boards-grid-lobby"></div>
-    `;
-    renderBoards(gs, document.getElementById('boards-grid-lobby'));
-  } else if (phase === 'arrangement') {
-    rp.innerHTML = `
-      <div class="section-title">배치 현황</div>
-      <p style="color:#aaa; font-size:0.85rem; margin-bottom:16px;">참가자들이 빙고판을 배치하고 있습니다</p>
-      <div class="boards-grid" id="boards-grid-arrange"></div>
-    `;
-    renderBoards(gs, document.getElementById('boards-grid-arrange'));
-  } else if (phase === 'waiting' || phase === 'game' || phase === 'voting') {
+  if (gs.phase === 'setup' || gs.phase === 'lobby') {
+    rp.innerHTML = `<div class="section-title">참가자 현황</div><div class="boards-grid" id="bg"></div>`;
+    renderBoards(gs, document.getElementById('bg'));
+  } else if (gs.phase === 'arrangement') {
+    rp.innerHTML = `<div class="section-title">배치 현황</div><p style="color:#aaa;font-size:0.85rem;margin-bottom:16px">참가자들이 빙고판을 배치하고 있습니다</p><div class="boards-grid" id="bg"></div>`;
+    renderBoards(gs, document.getElementById('bg'));
+  } else if (gs.phase === 'waiting' || gs.phase === 'game' || gs.phase === 'voting') {
     const currentQ = gs.currentQId ? gs.questions.find(q => q.id === gs.currentQId) : null;
     const adminQ = currentQ ? questions.find(q => q.keyword === currentQ.keyword) : null;
-
     rp.innerHTML = `
-      ${adminQ ? `<div class="current-q-box">
-        <div class="current-q-kw">현재 문제: [ ${adminQ.keyword} ]</div>
-        <div class="current-q-text">${adminQ.question}</div>
-        <div class="current-q-answer">${adminQ.answer === 'O' ? '⭕ O' : '❌ X'}</div>
-      </div>` : '<div class="current-q-box" style="color:#555">첫 번째 키워드를 선택하세요</div>'}
+      ${adminQ ? `<div class="current-q-box"><div class="current-q-kw">현재 문제: [ ${adminQ.keyword} ]</div><div class="current-q-text">${adminQ.question}</div><div class="current-q-answer">${adminQ.answer === 'O' ? '⭕ O' : '❌ X'}</div></div>` : '<div class="current-q-box" style="color:#555">첫 번째 키워드를 선택하세요</div>'}
       <div class="admin-timer" id="admin-timer">-</div>
-      <div class="section-title">키워드 선택 <span style="color:#aaa; font-size:0.85rem; font-weight:400">(출제할 키워드를 클릭)</span></div>
+      <div class="section-title">키워드 선택 <span style="color:#aaa;font-size:0.85rem;font-weight:400">(출제할 키워드를 클릭)</span></div>
       <div class="keyword-grid-admin" id="kw-grid"></div>
       <div class="section-title" style="margin-top:24px">참가자 빙고판</div>
-      <div class="boards-grid" id="boards-grid-game"></div>
-    `;
+      <div class="boards-grid" id="bg"></div>`;
     renderKeywordGrid(gs);
-    renderBoards(gs, document.getElementById('boards-grid-game'));
-  } else if (phase === 'ended') {
-    rp.innerHTML = `
-      <div style="text-align:center; padding-top:60px;">
-        <div style="font-size:4rem; margin-bottom:16px;">🏆</div>
-        <div style="font-size:2rem; font-weight:900; color:#f5a623; margin-bottom:8px;">${gs.winner ? `우승자: ${gs.winner}` : '게임 종료'}</div>
-        <button class="btn btn-danger" onclick="document.getElementById('reset-btn').click()">새 게임 시작</button>
-      </div>
-    `;
+    renderBoards(gs, document.getElementById('bg'));
+  } else if (gs.phase === 'ended') {
+    renderWinnerPanel(gs);
   }
+}
+
+function renderWinnerPanel(gs) {
+  const rp = document.getElementById('right-panel');
+  const d = lastEndedData;
+  if (d && d.winner) {
+    let boardHtml = '';
+    if (d.board && d.cellStatus && gs.questions) {
+      boardHtml = '<div class="winner-board-admin">' + d.board.map(qId => {
+        const q = gs.questions.find(q => q.id === qId);
+        const st = d.cellStatus[qId];
+        return `<div class="wb-cell ${st === 'correct' ? 'correct' : st === 'wrong' ? 'wrong' : 'idle'}">${q ? q.keyword : ''}</div>`;
+      }).join('') + '</div>';
+    }
+    rp.innerHTML = `
+      <div class="winner-display">
+        <div class="trophy">🏆</div>
+        <div class="w-title">우승자!</div>
+        <div class="w-name">${d.emoji || ''} ${d.winner}</div>
+        <div class="w-info">빙고 ${d.bingos || 0}줄 달성</div>
+        ${boardHtml}
+        <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
+          <button class="btn btn-primary" onclick="newGame()">🔄 새 게임 시작 (참가자 유지)</button>
+          <button class="btn btn-danger" onclick="document.getElementById('reset-btn').click()">완전 초기화</button>
+        </div>
+      </div>
+      <div class="section-title" style="margin-top:30px">전체 참가자 빙고판</div>
+      <div class="boards-grid" id="bg"></div>`;
+    renderBoards(gs, document.getElementById('bg'));
+  } else {
+    rp.innerHTML = `
+      <div class="winner-display">
+        <div class="trophy">🎊</div>
+        <div class="w-title">게임 종료</div>
+        <div class="w-info">모든 문제가 완료되었습니다</div>
+        <div style="margin-top:20px;display:flex;gap:12px;justify-content:center;">
+          <button class="btn btn-primary" onclick="newGame()">🔄 새 게임 시작 (참가자 유지)</button>
+          <button class="btn btn-danger" onclick="document.getElementById('reset-btn').click()">완전 초기화</button>
+        </div>
+      </div>`;
+  }
+}
+
+function newGame() {
+  socket.emit('admin:newGame');
+  lastEndedData = null;
 }
 
 function renderKeywordGrid(gs) {
@@ -492,13 +494,7 @@ function renderKeywordGrid(gs) {
     const isCurrent = gs.currentQId === q.id;
     btn.className = 'kw-btn' + (isAsked ? ' asked' : '') + (isCurrent ? ' current' : '');
     btn.textContent = q.keyword;
-    if (!isAsked) {
-      btn.onclick = () => {
-        if (confirm(`"${q.keyword}" 문제를 출제하시겠습니까?`)) {
-          socket.emit('admin:selectKeyword', q.id);
-        }
-      };
-    }
+    if (!isAsked) btn.onclick = () => { if (confirm(`"${q.keyword}" 문제를 출제하시겠습니까?`)) socket.emit('admin:selectKeyword', q.id); };
     grid.appendChild(btn);
   });
 }
@@ -509,15 +505,7 @@ function renderBoards(gs, container) {
   Object.values(gs.participants).forEach(p => {
     const card = document.createElement('div');
     card.className = 'board-card';
-    card.innerHTML = `
-      <div class="board-card-header">
-        <span class="emoji">${p.emoji}</span>
-        <span class="name">${p.nickname}</span>
-        <span class="bingo-cnt">빙고 ${p.bingos || 0}개</span>
-        ${p.boardReady ? '<span style="color:#43e97b; font-size:0.7rem;">✓</span>' : ''}
-      </div>
-      <div class="mini-grid"></div>
-    `;
+    card.innerHTML = `<div class="board-card-header"><span class="emoji">${p.emoji}</span><span class="name">${p.nickname}</span><span class="bingo-cnt">빙고 ${p.bingos||0}개</span>${p.boardReady ? '<span style="color:#43e97b;font-size:0.7rem;">✓</span>' : ''}</div><div class="mini-grid"></div>`;
     container.appendChild(card);
     const grid = card.querySelector('.mini-grid');
     if (p.board) {
@@ -534,74 +522,49 @@ function renderBoards(gs, container) {
 }
 
 function updatePhase(phase) {
-  const labels = {
-    setup: '설정 중', lobby: '로비', arrangement: '배치 중',
-    waiting: '대기 중', game: '진행 중', voting: '투표 중', ended: '종료'
-  };
+  const labels = { setup:'설정 중', lobby:'로비', arrangement:'배치 중', waiting:'대기 중', game:'진행 중', voting:'투표 중', ended:'종료' };
   document.getElementById('phase-badge').textContent = labels[phase] || phase;
-
-  const arrangeBtn = document.getElementById('start-arrange-btn');
-  const gameBtn = document.getElementById('start-game-btn');
-  if (phase === 'lobby') {
-    arrangeBtn.disabled = false;
-    gameBtn.disabled = true;
-  } else if (phase === 'arrangement' || phase === 'waiting') {
-    arrangeBtn.disabled = true;
-    gameBtn.disabled = false;
-  } else {
-    arrangeBtn.disabled = true;
-    gameBtn.disabled = true;
-  }
+  const ab = document.getElementById('start-arrange-btn'), gb = document.getElementById('start-game-btn');
+  if (phase === 'lobby') { ab.disabled = false; gb.disabled = true; }
+  else if (phase === 'arrangement' || phase === 'waiting') { ab.disabled = true; gb.disabled = false; }
+  else { ab.disabled = true; gb.disabled = true; }
 }
 
 function updateParticipants(gs) {
   const ps = Object.values(gs.participants);
   document.getElementById('p-count').textContent = ps.length + '명';
-  const list = document.getElementById('p-list');
-  list.innerHTML = ps.map(p => `
-    <div class="p-chip ${p.boardReady ? 'ready' : ''}">
-      <span>${p.emoji}</span><span>${p.nickname}</span>
-    </div>`).join('');
+  document.getElementById('p-list').innerHTML = ps.map(p => `<div class="p-chip ${p.boardReady ? 'ready' : ''}"><span>${p.emoji}</span><span>${p.nickname}</span></div>`).join('');
   const ready = ps.filter(p => p.boardReady).length;
-  document.getElementById('p-ready-count').textContent =
-    gs.phase === 'arrangement' ? `배치 완료: ${ready}/${ps.length}명` : '';
-  if (gs.phase === 'lobby' && ps.length > 0) {
-    document.getElementById('start-arrange-btn').disabled = false;
-  }
+  document.getElementById('p-ready-count').textContent = gs.phase === 'arrangement' ? `배치 완료: ${ready}/${ps.length}명` : '';
+  if (gs.phase === 'lobby' && ps.length > 0) document.getElementById('start-arrange-btn').disabled = false;
 }
 
-// ── Socket Events ─────────────────────────────────────────────────────────────
-socket.on('admin:questions', (qs) => {
-  questions = qs.map(q => ({ keyword: q.keyword, question: q.question, answer: q.answer }));
-  renderQList();
-});
+// ── Socket Events ──
+socket.on('admin:questions', qs => { questions = qs.map(q => ({ keyword: q.keyword, question: q.question, answer: q.answer })); renderQList(); });
 
-socket.on('game:state', (gs) => {
+socket.on('game:state', gs => {
   gameState = gs;
   updatePhase(gs.phase);
   updateParticipants(gs);
   renderRightPanel(gs);
 });
 
-socket.on('game:timer', (t) => {
-  const el = document.getElementById('admin-timer');
-  if (el) el.textContent = t > 0 ? t : '-';
-});
-
-socket.on('game:voteTimer', (t) => {
-  const el = document.getElementById('admin-timer');
-  if (el) el.textContent = `투표 ${t}초`;
-});
-
-socket.on('game:voteTally', (tally) => {
-  Object.entries(tally).forEach(([id, cnt]) => {
-    const el = document.querySelector(`.kw-btn[data-id="${id}"] .vcount`);
-    if (el) el.textContent = cnt;
-  });
-});
-
+socket.on('game:timer', t => { const el = document.getElementById('admin-timer'); if (el) el.textContent = t > 0 ? t : '-'; });
+socket.on('game:voteTimer', t => { const el = document.getElementById('admin-timer'); if (el) el.textContent = `투표 ${t}초`; });
+socket.on('game:voteTally', () => {});
 socket.on('admin:participantList', () => {});
-socket.on('error', (msg) => { alert('오류: ' + msg); });
+
+socket.on('game:ended', (data) => {
+  lastEndedData = data;
+  // The game:state will trigger renderRightPanel with ended phase
+});
+
+socket.on('game:newGame', () => {
+  lastEndedData = null;
+  // game:state will handle UI update
+});
+
+socket.on('error', msg => alert('오류: ' + msg));
 </script>
 </body>
 </html>
