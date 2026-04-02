@@ -11,65 +11,35 @@ const io = new Server(server, { cors: { origin: '*' } });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Database (JSON file) ────────────────────────────────────────────────────
+// ── Database ────────────────────────────────────────────────────────────────
 const DB_PATH = path.join(__dirname, 'data', 'question_sets.json');
-
 function ensureDb() {
   const dir = path.dirname(DB_PATH);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   if (!fs.existsSync(DB_PATH)) fs.writeFileSync(DB_PATH, '[]', 'utf8');
 }
+function readDb() { ensureDb(); try { return JSON.parse(fs.readFileSync(DB_PATH, 'utf8')); } catch { return []; } }
+function writeDb(data) { ensureDb(); fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8'); }
 
-function readDb() {
-  ensureDb();
-  try {
-    return JSON.parse(fs.readFileSync(DB_PATH, 'utf8'));
-  } catch { return []; }
-}
-
-function writeDb(data) {
-  ensureDb();
-  fs.writeFileSync(DB_PATH, JSON.stringify(data, null, 2), 'utf8');
-}
-
-// ── REST API: Question Sets ─────────────────────────────────────────────────
+// ── REST API ─────────────────────────────────────────────────────────────────
 app.get('/api/sets', (req, res) => {
   const sets = readDb();
-  // Return list without full question data for efficiency
-  res.json(sets.map(s => ({
-    id: s.id,
-    name: s.name,
-    questionCount: s.questions.length,
-    createdAt: s.createdAt,
-    updatedAt: s.updatedAt
-  })));
+  res.json(sets.map(s => ({ id: s.id, name: s.name, questionCount: s.questions.length, createdAt: s.createdAt, updatedAt: s.updatedAt })));
 });
-
 app.get('/api/sets/:id', (req, res) => {
-  const sets = readDb();
-  const set = sets.find(s => s.id === req.params.id);
+  const set = readDb().find(s => s.id === req.params.id);
   if (!set) return res.status(404).json({ error: '문제 세트를 찾을 수 없습니다' });
   res.json(set);
 });
-
 app.post('/api/sets', (req, res) => {
   const { name, questions } = req.body;
-  if (!name || !questions || !Array.isArray(questions)) {
-    return res.status(400).json({ error: '이름과 문제 목록이 필요합니다' });
-  }
+  if (!name || !questions || !Array.isArray(questions)) return res.status(400).json({ error: '이름과 문제 목록이 필요합니다' });
   const sets = readDb();
-  const newSet = {
-    id: `set_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    name,
-    questions,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
-  };
+  const newSet = { id: `set_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name, questions, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   sets.push(newSet);
   writeDb(sets);
   res.status(201).json(newSet);
 });
-
 app.put('/api/sets/:id', (req, res) => {
   const { name, questions } = req.body;
   const sets = readDb();
@@ -81,7 +51,6 @@ app.put('/api/sets/:id', (req, res) => {
   writeDb(sets);
   res.json(sets[idx]);
 });
-
 app.delete('/api/sets/:id', (req, res) => {
   let sets = readDb();
   const idx = sets.findIndex(s => s.id === req.params.id);
@@ -92,17 +61,24 @@ app.delete('/api/sets/:id', (req, res) => {
 });
 
 // ── Game State ──────────────────────────────────────────────────────────────
+// participants: { [nickname]: { nickname, emoji, board, cellStatus, bingos, boardReady, socketId, disconnected } }
 let state = {
   phase: 'setup',
   questions: [],
-  participants: {},
+  participants: {},       // keyed by nickname
   askedIds: [],
   currentQId: null,
-  questionAnswers: {},
-  votes: {},
+  questionAnswers: {},    // keyed by nickname
+  votes: {},              // keyed by nickname
+  lastCorrectNicknames: [], // nicknames who answered last question correctly
   winner: null,
   timers: {}
 };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function getParticipantBySid(sid) {
+  return Object.values(state.participants).find(p => p.socketId === sid);
+}
 
 function resetGame() {
   clearAllTimers();
@@ -114,6 +90,7 @@ function resetGame() {
     currentQId: null,
     questionAnswers: {},
     votes: {},
+    lastCorrectNicknames: [],
     winner: null,
     timers: {}
   };
@@ -136,51 +113,50 @@ function shuffle(arr) {
 function countBingos(board, cellStatus) {
   const active = id => cellStatus[id] === 'correct';
   let bingos = 0;
-  for (let r = 0; r < 4; r++) {
-    if ([0,1,2,3].every(c => active(board[r*4+c]))) bingos++;
-  }
-  for (let c = 0; c < 4; c++) {
-    if ([0,1,2,3].every(r => active(board[r*4+c]))) bingos++;
-  }
+  for (let r = 0; r < 4; r++) { if ([0,1,2,3].every(c => active(board[r*4+c]))) bingos++; }
+  for (let c = 0; c < 4; c++) { if ([0,1,2,3].every(r => active(board[r*4+c]))) bingos++; }
   if ([0,5,10,15].every(i => active(board[i]))) bingos++;
   if ([3,6,9,12].every(i => active(board[i]))) bingos++;
   return bingos;
 }
 
+// Public state: participants keyed by socketId (for client lookup by mySocketId)
 function getPublicState() {
+  const bySocketId = {};
+  Object.values(state.participants).forEach(p => {
+    bySocketId[p.socketId] = {
+      nickname: p.nickname,
+      emoji: p.emoji,
+      board: p.board,
+      cellStatus: p.cellStatus,
+      bingos: p.bingos,
+      boardReady: p.boardReady,
+      disconnected: p.disconnected || false
+    };
+  });
   return {
     phase: state.phase,
     questions: state.questions.map(q => ({ id: q.id, keyword: q.keyword })),
-    participants: Object.fromEntries(
-      Object.entries(state.participants).map(([sid, p]) => [sid, {
-        nickname: p.nickname,
-        emoji: p.emoji,
-        board: p.board,
-        cellStatus: p.cellStatus,
-        bingos: p.bingos,
-        boardReady: p.boardReady
-      }])
-    ),
+    participants: bySocketId,
     askedIds: state.askedIds,
     currentQId: state.currentQId,
     winner: state.winner
   };
 }
 
-function broadcastState() {
-  io.emit('game:state', getPublicState());
-}
+function broadcastState() { io.emit('game:state', getPublicState()); }
 
 // ── Socket Handlers ──────────────────────────────────────────────────────────
 io.on('connection', socket => {
   const isAdmin = socket.handshake.query.role === 'admin';
 
   socket.emit('game:state', getPublicState());
-  if (isAdmin && state.phase !== 'setup') {
+  if (isAdmin) {
+    socket.join('admin');
     socket.emit('admin:questions', state.questions);
   }
 
-  // ── ADMIN EVENTS ──────────────────────────────────────────────────────────
+  // ── ADMIN ──────────────────────────────────────────────────────────────────
   socket.on('admin:setQuestions', (questions) => {
     if (!isAdmin) return;
     state.questions = questions.map((q, i) => ({ ...q, id: `q${i}` }));
@@ -189,20 +165,15 @@ io.on('connection', socket => {
 
   socket.on('admin:openLobby', () => {
     if (!isAdmin) return;
-    if (state.questions.length < 16) {
-      socket.emit('error', '16개의 문제가 필요합니다.');
-      return;
-    }
+    if (state.questions.length < 16) { socket.emit('error', '16개의 문제가 필요합니다.'); return; }
     state.phase = 'lobby';
     broadcastState();
   });
 
   socket.on('admin:startArrangement', () => {
     if (!isAdmin) return;
-    if (Object.keys(state.participants).length === 0) {
-      socket.emit('error', '참가자가 없습니다.');
-      return;
-    }
+    const connected = Object.values(state.participants).filter(p => !p.disconnected).length;
+    if (connected === 0) { socket.emit('error', '참가자가 없습니다.'); return; }
     state.phase = 'arrangement';
     broadcastState();
     state.timers.arrangement = setTimeout(() => {
@@ -233,47 +204,91 @@ io.on('connection', socket => {
     broadcastState();
   });
 
-  // New game: reset game state but keep participants connected
   socket.on('admin:newGame', () => {
     if (!isAdmin) return;
     clearAllTimers();
-    const savedQuestions = state.questions;
-    Object.keys(state.participants).forEach(sid => {
-      const p = state.participants[sid];
+    Object.values(state.participants).forEach(p => {
       p.board = null;
       p.cellStatus = {};
       p.bingos = 0;
       p.boardReady = false;
-      savedQuestions.forEach(q => { p.cellStatus[q.id] = null; });
+      state.questions.forEach(q => { p.cellStatus[q.id] = null; });
     });
     state.phase = 'lobby';
     state.askedIds = [];
     state.currentQId = null;
     state.questionAnswers = {};
     state.votes = {};
+    state.lastCorrectNicknames = [];
     state.winner = null;
     broadcastState();
     io.emit('game:newGame');
   });
 
-  // ── PARTICIPANT EVENTS ────────────────────────────────────────────────────
+  // ── PARTICIPANT ──────────────────────────────────────────────────────────────
   socket.on('participant:join', ({ nickname, emoji }) => {
-    if (state.phase !== 'lobby' && state.phase !== 'arrangement') return;
-    if (Object.values(state.participants).some(p => p.nickname === nickname)) {
+    // ── Reconnection check ──
+    const existing = state.participants[nickname];
+    if (existing && existing.disconnected) {
+      // Restore under new socketId
+      existing.socketId = socket.id;
+      existing.disconnected = false;
+      // Mark questions missed while disconnected as wrong
+      state.askedIds.forEach(qId => {
+        if (existing.cellStatus[qId] === null || existing.cellStatus[qId] === undefined) {
+          existing.cellStatus[qId] = 'wrong';
+        }
+      });
+      if (existing.board) existing.bingos = countBingos(existing.board, existing.cellStatus);
+
+      socket.emit('participant:rejoined', {
+        nickname: existing.nickname,
+        emoji: existing.emoji,
+        board: existing.board,
+        cellStatus: existing.cellStatus,
+        bingos: existing.bingos,
+        boardReady: existing.boardReady,
+        phase: state.phase,
+        currentQId: state.currentQId,
+        askedIds: [...state.askedIds]
+      });
+
+      // Re-send current game event if needed
+      if (state.phase === 'game' && state.currentQId) {
+        const q = state.questions.find(q => q.id === state.currentQId);
+        if (q) socket.emit('game:question', { qId: state.currentQId, question: q.question });
+      } else if (state.phase === 'voting') {
+        const remaining = state.questions.filter(q => !state.askedIds.includes(q.id));
+        const candidates = remaining.map(q => ({ id: q.id, keyword: q.keyword }));
+        const hasCorrect = state.lastCorrectNicknames.length > 0;
+        const canVote = !hasCorrect || state.lastCorrectNicknames.includes(nickname);
+        socket.emit('game:voting', { candidates, canVote });
+      }
+
+      broadcastState();
+      io.to('admin').emit('admin:participantList', Object.values(state.participants).map(p => ({
+        nickname: p.nickname, emoji: p.emoji, boardReady: p.boardReady, disconnected: p.disconnected
+      })));
+      return;
+    }
+
+    // ── New participant ──
+    if (state.phase !== 'lobby' && state.phase !== 'arrangement') {
+      socket.emit('error', '게임이 이미 진행 중입니다.');
+      return;
+    }
+    if (existing && !existing.disconnected) {
       socket.emit('error', '이미 사용 중인 닉네임입니다.');
       return;
     }
-    state.participants[socket.id] = {
-      nickname,
-      emoji,
-      board: null,
-      cellStatus: {},
-      bingos: 0,
-      boardReady: false
+
+    state.participants[nickname] = {
+      nickname, emoji,
+      board: null, cellStatus: {},
+      bingos: 0, boardReady: false,
+      socketId: socket.id, disconnected: false
     };
-    state.questions.forEach(q => {
-      state.participants[socket.id].cellStatus[q.id] = null;
-    });
+    state.questions.forEach(q => { state.participants[nickname].cellStatus[q.id] = null; });
     socket.emit('participant:joined', { nickname, emoji });
     broadcastState();
     io.to('admin').emit('admin:participantList', Object.values(state.participants).map(p => ({
@@ -282,7 +297,7 @@ io.on('connection', socket => {
   });
 
   socket.on('participant:submitBoard', (board) => {
-    const p = state.participants[socket.id];
+    const p = getParticipantBySid(socket.id);
     if (!p) return;
     p.board = board;
     p.boardReady = true;
@@ -295,30 +310,38 @@ io.on('connection', socket => {
 
   socket.on('participant:answer', (answer) => {
     if (state.phase !== 'game') return;
-    if (!state.participants[socket.id]) return;
-    state.questionAnswers[socket.id] = answer;
+    const p = getParticipantBySid(socket.id);
+    if (!p) return;
+    state.questionAnswers[p.nickname] = answer;
   });
 
   socket.on('participant:vote', (qId) => {
     if (state.phase !== 'voting') return;
-    if (!state.participants[socket.id]) return;
-    state.votes[socket.id] = qId;
+    const p = getParticipantBySid(socket.id);
+    if (!p) return;
+    // Validate eligibility
+    const hasCorrect = state.lastCorrectNicknames.length > 0;
+    if (hasCorrect && !state.lastCorrectNicknames.includes(p.nickname)) return;
+    state.votes[p.nickname] = qId;
     broadcastVotes();
   });
 
   socket.on('disconnect', () => {
-    if (state.participants[socket.id]) {
-      delete state.participants[socket.id];
+    const p = getParticipantBySid(socket.id);
+    if (p) {
+      if (['setup', 'lobby'].includes(state.phase)) {
+        // Before game starts: remove entirely
+        delete state.participants[p.nickname];
+      } else {
+        // Game in progress: keep data, mark disconnected
+        p.disconnected = true;
+      }
       broadcastState();
     }
   });
-
-  if (isAdmin) {
-    socket.join('admin');
-    socket.emit('admin:questions', state.questions);
-  }
 });
 
+// ── Game Logic ──────────────────────────────────────────────────────────────
 function finalizeArrangements() {
   const ids = state.questions.map(q => q.id);
   Object.values(state.participants).forEach(p => {
@@ -330,9 +353,7 @@ function finalizeArrangements() {
       p.board = full.slice(0, 16);
     }
     p.boardReady = true;
-    state.questions.forEach(q => {
-      if (p.cellStatus[q.id] === undefined) p.cellStatus[q.id] = null;
-    });
+    state.questions.forEach(q => { if (p.cellStatus[q.id] === undefined) p.cellStatus[q.id] = null; });
   });
 }
 
@@ -341,7 +362,7 @@ function startQuestion(qId) {
   state.questionAnswers = {};
   state.phase = 'game';
   const q = state.questions.find(q => q.id === qId);
-  io.emit('game:question', { qId, question: q.question, answer: null });
+  io.emit('game:question', { qId, question: q.question });
   broadcastState();
 
   let timeLeft = 10;
@@ -361,27 +382,23 @@ function endQuestion(qId) {
   state.askedIds.push(qId);
 
   const correctNicknames = [];
-  Object.entries(state.participants).forEach(([sid, p]) => {
-    const ans = state.questionAnswers[sid];
+  Object.values(state.participants).forEach(p => {
+    const ans = state.questionAnswers[p.nickname];
     if (ans === q.answer) {
       p.cellStatus[qId] = 'correct';
       correctNicknames.push(p.nickname);
     } else if (ans) {
       p.cellStatus[qId] = 'wrong';
     }
-    if (p.board) {
-      p.bingos = countBingos(p.board, p.cellStatus);
-    }
+    // No answer = remains null (not marked wrong automatically)
+    if (p.board) p.bingos = countBingos(p.board, p.cellStatus);
   });
 
+  state.lastCorrectNicknames = correctNicknames;
   broadcastState();
-  io.emit('game:questionResult', {
-    qId,
-    correctAnswer: q.answer,
-    question: q.question,
-    correctNicknames
-  });
+  io.emit('game:questionResult', { qId, correctAnswer: q.answer, question: q.question, correctNicknames });
 
+  // Check 3-bingo winner
   const winner = Object.values(state.participants).find(p => p.bingos >= 3);
   if (winner) {
     state.winner = winner.nickname;
@@ -391,43 +408,42 @@ function endQuestion(qId) {
       winner: winner.nickname,
       emoji: winner.emoji,
       board: winner.board,
-      cellStatus: winner.cellStatus
+      cellStatus: winner.cellStatus,
+      bingos: winner.bingos  // ← fix: was missing
     });
     return;
   }
 
   const remaining = state.questions.filter(q => !state.askedIds.includes(q.id));
   if (remaining.length === 0) {
-    // All questions asked — find player with most bingos
+    // All questions done — find max bingo player
     let maxBingos = 0;
-    Object.values(state.participants).forEach(p => {
-      if (p.bingos > maxBingos) maxBingos = p.bingos;
-    });
+    Object.values(state.participants).forEach(p => { if (p.bingos > maxBingos) maxBingos = p.bingos; });
     const topPlayers = Object.values(state.participants).filter(p => p.bingos === maxBingos);
-    const bestPlayer = topPlayers.length > 0 && maxBingos > 0 ? topPlayers[0] : null;
-    state.winner = bestPlayer ? bestPlayer.nickname : null;
+    const best = topPlayers.length > 0 && maxBingos > 0 ? topPlayers[0] : null;
+    state.winner = best ? best.nickname : null;
     state.phase = 'ended';
     broadcastState();
-    io.emit('game:ended', bestPlayer ? {
-      winner: bestPlayer.nickname,
-      emoji: bestPlayer.emoji,
-      board: bestPlayer.board,
-      cellStatus: bestPlayer.cellStatus,
-      bingos: bestPlayer.bingos
-    } : { winner: null });
+    io.emit('game:ended', best ? { winner: best.nickname, emoji: best.emoji, board: best.board, cellStatus: best.cellStatus, bingos: best.bingos } : { winner: null });
     return;
   }
 
-  state.timers.resultDelay = setTimeout(() => {
-    startVoting(remaining);
-  }, 3000);
+  state.timers.resultDelay = setTimeout(() => { startVoting(remaining); }, 3000);
 }
 
 function startVoting(remaining) {
   state.phase = 'voting';
   state.votes = {};
   broadcastState();
-  io.emit('game:voting', { candidates: remaining.map(q => ({ id: q.id, keyword: q.keyword })) });
+
+  const candidates = remaining.map(q => ({ id: q.id, keyword: q.keyword }));
+  const hasCorrect = state.lastCorrectNicknames.length > 0;
+
+  // Send personalized canVote flag to each participant
+  Object.values(state.participants).filter(p => !p.disconnected).forEach(p => {
+    const canVote = !hasCorrect || state.lastCorrectNicknames.includes(p.nickname);
+    io.to(p.socketId).emit('game:voting', { candidates, canVote });
+  });
 
   let timeLeft = 5;
   io.emit('game:voteTimer', timeLeft);
@@ -443,73 +459,44 @@ function startVoting(remaining) {
 
 function broadcastVotes() {
   const tally = {};
-  Object.values(state.votes).forEach(id => {
-    tally[id] = (tally[id] || 0) + 1;
-  });
+  Object.values(state.votes).forEach(qId => { tally[qId] = (tally[qId] || 0) + 1; });
   io.emit('game:voteTally', tally);
 }
 
 function resolveVotes(remaining) {
   const tally = {};
-  Object.values(state.votes).forEach(id => {
-    tally[id] = (tally[id] || 0) + 1;
-  });
-
+  Object.values(state.votes).forEach(qId => { tally[qId] = (tally[qId] || 0) + 1; });
   let maxVotes = 0;
   Object.values(tally).forEach(v => { if (v > maxVotes) maxVotes = v; });
-
-  let winners;
-  if (maxVotes === 0) {
-    winners = remaining;
-  } else {
-    winners = remaining.filter(q => (tally[q.id] || 0) === maxVotes);
-  }
-
-  const chosen = winners[Math.floor(Math.random() * winners.length)];
-  startQuestion(chosen.id);
+  const winners = maxVotes === 0 ? remaining : remaining.filter(q => (tally[q.id] || 0) === maxVotes);
+  startQuestion(winners[Math.floor(Math.random() * winners.length)].id);
 }
 
-// ── Start Server ─────────────────────────────────────────────────────────────
+// ── Start Server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', async () => {
-  // Show local IPs
   const os = require('os');
   const nets = os.networkInterfaces();
   const localIPs = [];
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      if (net.family === 'IPv4' && !net.internal) {
-        localIPs.push(net.address);
-      }
+      if (net.family === 'IPv4' && !net.internal) localIPs.push(net.address);
     }
   }
-
-  console.log('');
-  console.log('╔═══════════════════════════════════════════════════════════╗');
-  console.log('║           🎯 빙고 퀴즈 서버 실행 중!                    ║');
-  console.log('╠═══════════════════════════════════════════════════════════╣');
+  console.log('\n╔══════════════════════════════════════════════╗');
+  console.log('║      🎯 빙고 퀴즈 서버 실행 중!             ║');
+  console.log('╠══════════════════════════════════════════════╣');
   console.log(`║  로컬:     http://localhost:${PORT}`);
-  localIPs.forEach(ip => {
-    console.log(`║  네트워크: http://${ip}:${PORT}`);
-  });
+  localIPs.forEach(ip => console.log(`║  네트워크: http://${ip}:${PORT}`));
   console.log(`║  관리자:   http://localhost:${PORT}/admin.html`);
-  console.log('╚═══════════════════════════════════════════════════════════╝');
+  console.log('╚══════════════════════════════════════════════╝\n');
 
-  // Only use localtunnel in local development
   if (process.env.NODE_ENV !== 'production') {
     try {
       const localtunnel = require('localtunnel');
       const tunnel = await localtunnel({ port: PORT });
-      console.log('');
-      console.log('🌐 외부 접속 URL (공유용):');
-      console.log(`   참가자: ${tunnel.url}`);
-      console.log(`   관리자: ${tunnel.url}/admin.html`);
-      console.log('');
-      tunnel.on('close', () => console.log('⚠️  터널 연결이 종료되었습니다.'));
-    } catch (e) {
-      console.log('');
-      console.log('💡 외부 접속을 위해: npm install localtunnel 후 재시작');
-      console.log('   또는 같은 Wi-Fi에서 위 네트워크 IP로 접속 가능합니다.');
-    }
+      console.log('🌐 외부 URL:', tunnel.url);
+      tunnel.on('close', () => console.log('⚠️  터널 종료'));
+    } catch (e) {}
   }
 });

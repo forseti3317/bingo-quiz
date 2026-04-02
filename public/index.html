@@ -128,6 +128,21 @@
   .winner-board { margin: 0 auto; max-width: 280px; }
   .winner-cell { aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; padding: 2px; word-break: keep-all; text-align: center; font-weight: 600; line-height: 1.2; }
 
+  /* Setup Waiting Screen */
+  .setup-waiting { text-align: center; max-width: 360px; padding: 20px; }
+  .setup-icon { font-size: 4rem; margin-bottom: 20px; animation: float 2s ease-in-out infinite alternate; }
+  .setup-title { font-size: 1.3rem; font-weight: 700; color: #f5a623; margin-bottom: 12px; }
+  .setup-msg { color: #aaa; font-size: 0.9rem; line-height: 1.7; }
+  .setup-dots { display: inline-flex; gap: 6px; margin-top: 20px; }
+  .setup-dots span { width: 8px; height: 8px; background: #f5a623; border-radius: 50%; animation: blink 1.2s ease-in-out infinite; }
+  .setup-dots span:nth-child(2) { animation-delay: 0.2s; }
+  .setup-dots span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes blink { 0%,80%,100% { opacity: 0.2; } 40% { opacity: 1; } }
+
+  /* Vote no-permission message */
+  .vote-no-permission { text-align: center; padding: 20px 10px; color: #aaa; font-size: 0.95rem; line-height: 1.7; }
+  .vote-no-permission .lock-icon { font-size: 2.5rem; margin-bottom: 10px; }
+
   ::-webkit-scrollbar { width: 4px; height: 4px; }
   ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
   ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
@@ -147,8 +162,18 @@
 </head>
 <body>
 
+<!-- ⓪ Setup Waiting Screen -->
+<div id="screen-setup" class="screen active">
+  <div class="setup-waiting">
+    <div class="setup-icon">🎯</div>
+    <div class="setup-title">아직 퀴즈가 시작되지 않았습니다</div>
+    <p class="setup-msg">관리자가 퀴즈를 시작하면<br>자동으로 화면이 전환됩니다.<br>잠시만 기다려주세요!</p>
+    <div class="setup-dots"><span></span><span></span><span></span></div>
+  </div>
+</div>
+
 <!-- ① Join Screen -->
-<div id="screen-join" class="screen active">
+<div id="screen-join" class="screen">
   <div class="game-title">🎯 빙고 퀴즈</div>
   <p class="subtitle">사내 행사 O/X 빙고 게임</p>
   <div class="join-card">
@@ -266,6 +291,10 @@
     <h2>🗳️ 다음 키워드 투표!</h2>
     <div class="vote-timer" id="vote-timer">5</div>
     <div class="vote-grid" id="vote-grid"></div>
+    <div class="vote-no-permission" id="vote-no-permission" style="display:none">
+      <div class="lock-icon">🔒</div>
+      <div>이전 문제 정답자만<br>다음 문제 선정 투표를 할 수 있습니다</div>
+    </div>
   </div>
 </div>
 
@@ -463,6 +492,43 @@ socket.on('participant:joined', ({ nickname, emoji }) => {
   showScreen('lobby');
 });
 
+socket.on('participant:rejoined', ({ nickname, emoji, board, cellStatus, bingos, boardReady, phase, currentQId, askedIds }) => {
+  myNickname = nickname;
+  myEmoji = emoji;
+
+  document.getElementById('game-emoji').textContent = emoji;
+  document.getElementById('game-nickname').textContent = nickname;
+  document.getElementById('bingo-count').textContent = bingos || 0;
+  document.getElementById('lobby-emoji').textContent = emoji;
+  document.getElementById('lobby-nick').textContent = nickname;
+  document.getElementById('waiting-nickname').textContent = nickname;
+  document.getElementById('my-emoji-display').textContent = emoji;
+  document.getElementById('submit-board-btn').textContent = '배치 완료!';
+  document.getElementById('submit-board-btn').disabled = false;
+
+  if (phase === 'lobby') {
+    showScreen('lobby');
+  } else if (phase === 'arrangement') {
+    boardSlots = board ? [...board] : new Array(16).fill(null);
+    if (!boardReady) {
+      buildArrangementScreen(currentQuestions);
+      showScreen('arrangement');
+      startArrangeTimer();
+    } else {
+      showScreen('waiting');
+    }
+  } else if (phase === 'waiting') {
+    showScreen('waiting');
+  } else if (phase === 'game' || phase === 'voting') {
+    showScreen('game');
+    if (board && cellStatus && currentQuestions) {
+      buildGameBoard(board, cellStatus, currentQId, currentQuestions);
+    }
+  } else if (phase === 'ended') {
+    showScreen('winner');
+  }
+});
+
 socket.on('participant:boardConfirmed', () => {
   showScreen('waiting');
   document.getElementById('waiting-nickname').textContent = myNickname;
@@ -472,6 +538,20 @@ socket.on('participant:boardConfirmed', () => {
 socket.on('game:state', (gs) => {
   currentGameState = gs;
   if (gs.questions) currentQuestions = gs.questions;
+
+  // Phase: setup — show waiting screen (not yet started)
+  if (gs.phase === 'setup') {
+    if (!myNickname) showScreen('setup');
+    return;
+  }
+
+  // Phase: lobby — if not joined yet, show join screen; if already joined, show lobby
+  if (gs.phase === 'lobby') {
+    if (!myNickname) showScreen('join');
+    else showScreen('lobby');
+    return;
+  }
+
   const me = mySocketId ? gs.participants[mySocketId] : null;
   if (!me) return;
 
@@ -493,9 +573,6 @@ socket.on('game:state', (gs) => {
   } else if (gs.phase === 'game' || gs.phase === 'voting') {
     showScreen('game');
     if (me.board) buildGameBoard(me.board, me.cellStatus, gs.currentQId, currentQuestions);
-  } else if (gs.phase === 'lobby') {
-    // If already joined, show lobby screen
-    if (myNickname) showScreen('lobby');
   } else if (gs.phase === 'ended') {
     document.getElementById('vote-overlay').classList.remove('show');
     document.getElementById('result-overlay').classList.remove('show');
@@ -547,24 +624,34 @@ socket.on('game:questionResult', ({ qId, correctAnswer, question, correctNicknam
   document.getElementById('result-overlay').classList.add('show');
 });
 
-socket.on('game:voting', ({ candidates }) => {
+socket.on('game:voting', ({ candidates, canVote }) => {
   document.getElementById('result-overlay').classList.remove('show');
   hasVoted = false;
   const grid = document.getElementById('vote-grid');
-  grid.innerHTML = '';
-  candidates.forEach(c => {
-    const item = document.createElement('div');
-    item.className = 'vote-item';
-    item.dataset.id = c.id;
-    item.innerHTML = `<div class="kw">${c.keyword}</div><div class="count">0</div>`;
-    item.onclick = () => {
-      hasVoted = true;
-      document.querySelectorAll('.vote-item').forEach(v => v.classList.remove('voted'));
-      item.classList.add('voted');
-      socket.emit('participant:vote', c.id);
-    };
-    grid.appendChild(item);
-  });
+  const noPermEl = document.getElementById('vote-no-permission');
+
+  if (canVote === false) {
+    // This participant cannot vote — show restriction message
+    grid.style.display = 'none';
+    noPermEl.style.display = 'block';
+  } else {
+    grid.style.display = '';
+    noPermEl.style.display = 'none';
+    grid.innerHTML = '';
+    candidates.forEach(c => {
+      const item = document.createElement('div');
+      item.className = 'vote-item';
+      item.dataset.id = c.id;
+      item.innerHTML = `<div class="kw">${c.keyword}</div><div class="count">0</div>`;
+      item.onclick = () => {
+        hasVoted = true;
+        document.querySelectorAll('.vote-item').forEach(v => v.classList.remove('voted'));
+        item.classList.add('voted');
+        socket.emit('participant:vote', c.id);
+      };
+      grid.appendChild(item);
+    });
+  }
   document.getElementById('vote-overlay').classList.add('show');
   document.getElementById('vote-timer').textContent = '5';
 });
