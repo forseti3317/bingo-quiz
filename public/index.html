@@ -120,13 +120,30 @@
   .vote-item .count { font-size: 1.1rem; font-weight: 900; color: #f5a623; }
 
   /* Winner Screen */
-  .winner-screen { text-align: center; max-width: 400px; }
+  .winner-screen { text-align: center; max-width: 460px; width: 100%; }
   .winner-emoji-big { font-size: 4rem; margin-bottom: 8px; }
   .winner-title { font-size: 2rem; font-weight: 900; background: linear-gradient(135deg, #f5a623, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 6px; }
   .winner-name { font-size: 1.5rem; font-weight: 700; color: #43e97b; margin-bottom: 16px; }
   .winner-bingo-info { color: #f5a623; font-size: 0.9rem; margin-bottom: 16px; }
   .winner-board { margin: 0 auto; max-width: 280px; }
   .winner-cell { aspect-ratio: 1; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; padding: 2px; word-break: keep-all; text-align: center; font-weight: 600; line-height: 1.2; }
+
+  /* My Result Section */
+  .my-result-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .my-result-title { font-size: 1rem; font-weight: 700; color: #63b3ed; margin-bottom: 4px; }
+  .my-result-bingo { color: #f5a623; font-size: 0.9rem; margin-bottom: 10px; }
+  .my-result-board { margin: 0 auto; max-width: 240px; }
+
+  /* Ranking */
+  .ranking-section { margin-top: 20px; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); }
+  .ranking-title { font-size: 1rem; font-weight: 700; color: #f5a623; margin-bottom: 10px; }
+  .ranking-list { text-align: left; }
+  .ranking-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: rgba(255,255,255,0.04); border-radius: 10px; margin-bottom: 5px; font-size: 0.9rem; }
+  .ranking-item.me { background: rgba(99,179,237,0.15); border: 1px solid rgba(99,179,237,0.3); }
+  .ranking-rank { font-weight: 900; color: #f5a623; min-width: 24px; text-align: center; }
+  .ranking-emoji { font-size: 1.2rem; }
+  .ranking-nick { flex: 1; font-weight: 600; }
+  .ranking-bingos { color: #43e97b; font-weight: 700; font-size: 0.85rem; }
 
   /* Setup Waiting Screen */
   .setup-waiting { text-align: center; max-width: 360px; padding: 20px; }
@@ -269,6 +286,19 @@
     <div class="winner-bingo-info" id="winner-bingo-info"></div>
     <div class="winner-board">
       <div class="game-bingo-grid" id="winner-board-grid"></div>
+    </div>
+    <!-- My Result -->
+    <div class="my-result-section" id="my-result-section" style="display:none">
+      <div class="my-result-title" id="my-result-title">내 결과</div>
+      <div class="my-result-bingo" id="my-result-bingo"></div>
+      <div class="my-result-board">
+        <div class="game-bingo-grid" id="my-result-board-grid"></div>
+      </div>
+    </div>
+    <!-- Ranking -->
+    <div class="ranking-section" id="ranking-section" style="display:none">
+      <div class="ranking-title">전체 순위</div>
+      <div class="ranking-list" id="ranking-list"></div>
     </div>
   </div>
 </div>
@@ -480,13 +510,34 @@ function submitAnswer(ans) {
   document.getElementById('btn-x').classList.toggle('my-answer', ans === 'X');
 }
 
+// ── SessionStorage Persistence ──
+function saveSession() {
+  if (myNickname && myEmoji) {
+    sessionStorage.setItem('bingo_nickname', myNickname);
+    sessionStorage.setItem('bingo_emoji', myEmoji);
+  }
+}
+function clearSession() {
+  sessionStorage.removeItem('bingo_nickname');
+  sessionStorage.removeItem('bingo_emoji');
+}
+
 // ── Socket Events ──
-socket.on('connect', () => { mySocketId = socket.id; });
+socket.on('connect', () => {
+  mySocketId = socket.id;
+  // Auto-rejoin if session data exists (refresh/reconnect)
+  const savedNick = sessionStorage.getItem('bingo_nickname');
+  const savedEmoji = sessionStorage.getItem('bingo_emoji');
+  if (savedNick && savedEmoji) {
+    socket.emit('participant:join', { nickname: savedNick, emoji: savedEmoji });
+  }
+});
 socket.on('error', msg => showError(msg));
 
 socket.on('participant:joined', ({ nickname, emoji }) => {
   myNickname = nickname;
   myEmoji = emoji;
+  saveSession();
   document.getElementById('lobby-emoji').textContent = emoji;
   document.getElementById('lobby-nick').textContent = nickname;
   showScreen('lobby');
@@ -495,6 +546,7 @@ socket.on('participant:joined', ({ nickname, emoji }) => {
 socket.on('participant:rejoined', ({ nickname, emoji, board, cellStatus, bingos, boardReady, phase, currentQId, askedIds }) => {
   myNickname = nickname;
   myEmoji = emoji;
+  saveSession();
 
   document.getElementById('game-emoji').textContent = emoji;
   document.getElementById('game-nickname').textContent = nickname;
@@ -667,7 +719,7 @@ socket.on('game:voteTimer', (t) => {
   if (t <= 0) document.getElementById('vote-overlay').classList.remove('show');
 });
 
-socket.on('game:ended', ({ winner, emoji, board, cellStatus, bingos }) => {
+socket.on('game:ended', ({ winner, emoji, board, cellStatus, bingos, allResults }) => {
   document.getElementById('vote-overlay').classList.remove('show');
   document.getElementById('result-overlay').classList.remove('show');
   if (winner) {
@@ -689,6 +741,52 @@ socket.on('game:ended', ({ winner, emoji, board, cellStatus, bingos }) => {
     document.getElementById('winner-name').textContent = '우승자 없음';
     document.getElementById('winner-bingo-info').textContent = '모든 문제가 종료되었습니다';
   }
+
+  // Show my own result
+  const myResultSection = document.getElementById('my-result-section');
+  if (myNickname && allResults) {
+    const me = allResults.find(r => r.nickname === myNickname);
+    if (me && me.board && currentQuestions) {
+      myResultSection.style.display = '';
+      const isWinner = me.nickname === winner;
+      document.getElementById('my-result-title').textContent = isWinner ? '🏆 내 결과 (우승!)' : '📋 내 결과';
+      document.getElementById('my-result-bingo').textContent = `빙고 ${me.bingos || 0}줄`;
+      const myGrid = document.getElementById('my-result-board-grid');
+      myGrid.innerHTML = '';
+      me.board.forEach(qId => {
+        const q = currentQuestions.find(q => q.id === qId);
+        const cell = document.createElement('div');
+        const st = me.cellStatus[qId];
+        cell.className = 'winner-cell game-cell ' + (st === 'correct' ? 'correct' : st === 'wrong' ? 'wrong' : 'idle');
+        cell.textContent = q ? q.keyword : '';
+        myGrid.appendChild(cell);
+      });
+    } else {
+      myResultSection.style.display = 'none';
+    }
+  } else {
+    myResultSection.style.display = 'none';
+  }
+
+  // Show ranking
+  const rankSection = document.getElementById('ranking-section');
+  if (allResults && allResults.length > 0) {
+    rankSection.style.display = '';
+    const rankList = document.getElementById('ranking-list');
+    rankList.innerHTML = '';
+    allResults.forEach((r, i) => {
+      const medals = ['🥇','🥈','🥉'];
+      const rankLabel = i < 3 ? medals[i] : `${i+1}`;
+      const isMe = r.nickname === myNickname;
+      const item = document.createElement('div');
+      item.className = 'ranking-item' + (isMe ? ' me' : '');
+      item.innerHTML = `<span class="ranking-rank">${rankLabel}</span><span class="ranking-emoji">${r.emoji}</span><span class="ranking-nick">${r.nickname}${isMe ? ' (나)' : ''}</span><span class="ranking-bingos">빙고 ${r.bingos || 0}줄</span>`;
+      rankList.appendChild(item);
+    });
+  } else {
+    rankSection.style.display = 'none';
+  }
+
   showScreen('winner');
 });
 
@@ -698,6 +796,9 @@ socket.on('game:newGame', () => {
   myAnswer = null;
   questionActive = false;
   if (arrangeTimer) { clearInterval(arrangeTimer); arrangeTimer = null; }
+  // Hide end-screen sections
+  document.getElementById('my-result-section').style.display = 'none';
+  document.getElementById('ranking-section').style.display = 'none';
   if (myNickname) {
     showScreen('lobby');
     document.getElementById('lobby-emoji').textContent = myEmoji;

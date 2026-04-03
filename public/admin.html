@@ -600,6 +600,37 @@ function renderRightPanel(gs) {
 function renderWinnerPanel(gs) {
   const rp = document.getElementById('right-panel');
   const d = lastEndedData;
+
+  // Build ranking table from allResults
+  let rankingHtml = '';
+  if (d && d.allResults && d.allResults.length > 0) {
+    const medals = ['🥇','🥈','🥉'];
+    rankingHtml = `
+      <div class="section-title" style="margin-top:30px">전체 참가자 순위</div>
+      <table style="width:100%;border-collapse:collapse;margin-bottom:24px;max-width:600px;margin-left:auto;margin-right:auto;">
+        <thead>
+          <tr style="border-bottom:2px solid rgba(255,255,255,0.15);">
+            <th style="padding:10px 8px;text-align:center;color:#f5a623;font-size:0.85rem;width:50px;">순위</th>
+            <th style="padding:10px 8px;text-align:left;color:#f5a623;font-size:0.85rem;">참가자</th>
+            <th style="padding:10px 8px;text-align:center;color:#f5a623;font-size:0.85rem;width:80px;">빙고</th>
+            <th style="padding:10px 8px;text-align:center;color:#f5a623;font-size:0.85rem;width:80px;">정답수</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${d.allResults.map((r, i) => {
+            const correctCount = r.board ? r.board.filter(qId => r.cellStatus[qId] === 'correct').length : 0;
+            const isWinner = r.nickname === d.winner;
+            return `<tr style="border-bottom:1px solid rgba(255,255,255,0.06);${isWinner ? 'background:rgba(245,166,35,0.1);' : ''}">
+              <td style="padding:8px;text-align:center;font-weight:900;font-size:1rem;">${i < 3 ? medals[i] : i+1}</td>
+              <td style="padding:8px;font-weight:600;">${r.emoji} ${r.nickname}${isWinner ? ' <span style="color:#f5a623;font-size:0.75rem;">👑 우승</span>' : ''}</td>
+              <td style="padding:8px;text-align:center;color:#43e97b;font-weight:700;">${r.bingos || 0}줄</td>
+              <td style="padding:8px;text-align:center;color:#63b3ed;font-weight:700;">${correctCount}/${r.board ? r.board.length : 16}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>`;
+  }
+
   if (d && d.winner) {
     let boardHtml = '';
     if (d.board && d.cellStatus && gs.questions) {
@@ -621,7 +652,8 @@ function renderWinnerPanel(gs) {
           <button class="btn btn-danger" onclick="document.getElementById('reset-btn').click()">완전 초기화</button>
         </div>
       </div>
-      <div class="section-title" style="margin-top:30px">전체 참가자 빙고판</div>
+      ${rankingHtml}
+      <div class="section-title" style="margin-top:24px">전체 참가자 빙고판</div>
       <div class="boards-grid" id="bg"></div>`;
     renderBoards(gs, document.getElementById('bg'));
   } else {
@@ -634,7 +666,11 @@ function renderWinnerPanel(gs) {
           <button class="btn btn-primary" onclick="newGame()">🔄 새 게임 시작 (참가자 유지)</button>
           <button class="btn btn-danger" onclick="document.getElementById('reset-btn').click()">완전 초기화</button>
         </div>
-      </div>`;
+      </div>
+      ${rankingHtml}
+      <div class="section-title" style="margin-top:24px">전체 참가자 빙고판</div>
+      <div class="boards-grid" id="bg"></div>`;
+    renderBoards(gs, document.getElementById('bg'));
   }
 }
 

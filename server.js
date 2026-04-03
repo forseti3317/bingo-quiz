@@ -229,7 +229,11 @@ io.on('connection', socket => {
   socket.on('participant:join', ({ nickname, emoji }) => {
     // ── Reconnection check ──
     const existing = state.participants[nickname];
-    if (existing && existing.disconnected) {
+    if (existing && (existing.disconnected || existing.socketId !== socket.id)) {
+      // Disconnect old socket if still connected
+      if (!existing.disconnected && existing.socketId !== socket.id) {
+        try { io.sockets.sockets.get(existing.socketId)?.disconnect(true); } catch(e) {}
+      }
       // Restore under new socketId
       existing.socketId = socket.id;
       existing.disconnected = false;
@@ -263,6 +267,15 @@ io.on('connection', socket => {
         const hasCorrect = state.lastCorrectNicknames.length > 0;
         const canVote = !hasCorrect || state.lastCorrectNicknames.includes(nickname);
         socket.emit('game:voting', { candidates, canVote });
+      } else if (state.phase === 'ended') {
+        // Re-send ended data on reconnect
+        const allResults = Object.values(state.participants)
+          .map(p => ({ nickname: p.nickname, emoji: p.emoji, bingos: p.bingos, board: p.board, cellStatus: p.cellStatus }))
+          .sort((a, b) => b.bingos - a.bingos);
+        const w = state.winner ? state.participants[state.winner] : null;
+        socket.emit('game:ended', w
+          ? { winner: w.nickname, emoji: w.emoji, board: w.board, cellStatus: w.cellStatus, bingos: w.bingos, allResults }
+          : { winner: null, allResults });
       }
 
       broadcastState();
@@ -387,16 +400,23 @@ function endQuestion(qId) {
     if (ans === q.answer) {
       p.cellStatus[qId] = 'correct';
       correctNicknames.push(p.nickname);
-    } else if (ans) {
+    } else {
+      // Wrong answer OR no answer (timeout/disconnect) = wrong
       p.cellStatus[qId] = 'wrong';
     }
-    // No answer = remains null (not marked wrong automatically)
     if (p.board) p.bingos = countBingos(p.board, p.cellStatus);
   });
 
   state.lastCorrectNicknames = correctNicknames;
   broadcastState();
   io.emit('game:questionResult', { qId, correctAnswer: q.answer, question: q.question, correctNicknames });
+
+  // Build allResults for end screen
+  function buildAllResults() {
+    return Object.values(state.participants)
+      .map(p => ({ nickname: p.nickname, emoji: p.emoji, bingos: p.bingos, board: p.board, cellStatus: p.cellStatus }))
+      .sort((a, b) => b.bingos - a.bingos);
+  }
 
   // Check 3-bingo winner
   const winner = Object.values(state.participants).find(p => p.bingos >= 3);
@@ -409,7 +429,8 @@ function endQuestion(qId) {
       emoji: winner.emoji,
       board: winner.board,
       cellStatus: winner.cellStatus,
-      bingos: winner.bingos  // ← fix: was missing
+      bingos: winner.bingos,
+      allResults: buildAllResults()
     });
     return;
   }
@@ -424,7 +445,10 @@ function endQuestion(qId) {
     state.winner = best ? best.nickname : null;
     state.phase = 'ended';
     broadcastState();
-    io.emit('game:ended', best ? { winner: best.nickname, emoji: best.emoji, board: best.board, cellStatus: best.cellStatus, bingos: best.bingos } : { winner: null });
+    const endData = best
+      ? { winner: best.nickname, emoji: best.emoji, board: best.board, cellStatus: best.cellStatus, bingos: best.bingos, allResults: buildAllResults() }
+      : { winner: null, allResults: buildAllResults() };
+    io.emit('game:ended', endData);
     return;
   }
 
